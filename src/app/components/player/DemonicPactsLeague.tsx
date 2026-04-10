@@ -8,6 +8,7 @@ import PactsSpent from '@/app/components/player/demonicPactsLeague/PactsSpent';
 import { useStore } from '@/state';
 import CullingSpree from '@/public/img/combat_masteries/culling_spree.png';
 import Toggle from '@/app/components/generic/Toggle';
+import NumberInput from '@/app/components/generic/NumberInput';
 import EquipmentSelect from '@/app/components/player/equipment/EquipmentSelect';
 import ShowIfLeagueEffectEnabled from '@/app/components/player/demonicPactsLeague/ShowIfLeagueEffectEnabled';
 import { getCdnImage, isValidBlindbagWeapon } from '@/utils';
@@ -66,6 +67,35 @@ const BlindbagSelector = observer(() => {
           }
         }}
       />
+    </div>
+  );
+});
+
+const DistanceToEnemyInput = observer(() => {
+  const store = useStore();
+  const { distanceToEnemy } = store.player.leagues.six;
+
+  return (
+    <div className="w-full mt-2 mb-4">
+      <NumberInput
+        className="form-control w-16"
+        required
+        min={0}
+        step={1}
+        value={distanceToEnemy}
+        onChange={(distance) => store.updatePlayer({ leagues: { six: { distanceToEnemy: distance } } })}
+      />
+      <span className="ml-1 text-sm select-none">
+        Distance to target (tiles)
+        {' '}
+        <span
+          className="align-super underline decoration-dotted cursor-help text-xs text-gray-300"
+          data-tooltip-id="tooltip"
+          data-tooltip-content="Used for Demonic Pact distance-based effects such as melee distance bonuses and max-accuracy chance."
+        >
+          ?
+        </span>
+      </span>
     </div>
   );
 });
@@ -138,6 +168,8 @@ const DemonicPactsLeague: React.FC = observer(() => {
             </>
           )}
         />
+
+        <DistanceToEnemyInput />
 
         <ShowIfLeagueEffectEnabled leaguesEffect="talent_free_random_weapon_attack_chance">
           <BlindbagSelector />
