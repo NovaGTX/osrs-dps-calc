@@ -142,6 +142,8 @@ const ammoForRangedWeapons: { [weapon: number]: number[] } = {
   26374: commonAmmoCategories().cb_t64, // Zaryte crossbow
   12924: [], // Toxic blowpipe (empty)
   12926: [], // Toxic blowpipe (charged)
+  31604: [], // Drygore blowpipe (empty)
+  31603: [], // Drygore blowpipe (charged)
   22547: [], // Craw's bow (empty)
   22550: [], // Craw's bow (charged)
   23983: [], // Crystal bow (empty)
@@ -372,6 +374,18 @@ export const calculateEquipmentBonusesFromGear = (player: Player, monster: Monst
     }
   }
 
+  if (playerEquipment.ammo?.name === 'Crystal blessing') {
+    const crystalPieces = sum(
+      [playerEquipment.head?.name, playerEquipment.body?.name, playerEquipment.legs?.name],
+      (name) => (name?.startsWith('Crystal ') ? 1 : 0),
+    );
+
+    if (crystalPieces > 0) {
+      totals.offensive.magic += 20 * crystalPieces;
+      totals.bonuses.magic_str += 20 * crystalPieces;
+    }
+  }
+
   const leagues = player.leagues.six.effects;
   if (leagues.talent_percentage_magic_damage) {
     totals.bonuses.magic_str += leagues.talent_percentage_magic_damage * 10;
@@ -480,9 +494,11 @@ export const WEAPON_SPEC_COSTS: { [canonicalName: string]: number } = {
   'Emberlight': 50,
   'Tonalztics of ralos': 50,
   'Dragon claws': 50,
+  'Infernal tecpatl': 50,
   'Voidwaker': 50,
   'Toxic blowpipe': 50,
   'Blazing blowpipe': 50,
+  'Fang of the hound': 50,
   'Webweaver bow': 50,
   'Magic shortbow (i)': 50,
   'Ancient godsword': 50,

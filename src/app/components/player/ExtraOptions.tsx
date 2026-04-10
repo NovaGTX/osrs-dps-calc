@@ -144,6 +144,19 @@ const ExtraOptions: React.FC = observer(() => {
           <NumberInput
             className="form-control w-12"
             required
+            min={0}
+            max={14}
+            value={player.buffs.lithicShatterStacks}
+            onChange={(v) => store.updatePlayer({ buffs: { lithicShatterStacks: v } })}
+          />
+          <span className="ml-1 text-sm select-none">
+            Lithic shatter stacks
+          </span>
+        </div>
+        <div className="w-full">
+          <NumberInput
+            className="form-control w-12"
+            required
             min={1}
             max={10}
             value={player.buffs.chinchompaDistance}

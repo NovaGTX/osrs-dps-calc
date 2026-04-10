@@ -274,7 +274,7 @@ export default class BaseCalc {
    * @see https://oldschool.runescape.wiki/w/Slayer_helmet
    */
   protected isWearingSlayerHelmet(): boolean {
-    return this.wearing(['Slayer helmet', 'Slayer helmet (i)']) || this.player.leagues.six.cullingSpree;
+    return this.wearing(['Slayer helmet', 'Slayer helmet (i)', "V's helm"]) || this.player.leagues.six.cullingSpree;
   }
 
   /**
@@ -290,7 +290,7 @@ export default class BaseCalc {
    * @see https://oldschool.runescape.wiki/w/Black_mask_(i)
    */
   protected isWearingImbuedBlackMask(): boolean {
-    return this.wearing(['Black mask (i)', 'Slayer helmet (i)']) || this.player.leagues.six.cullingSpree;
+    return this.wearing(['Black mask (i)', 'Slayer helmet (i)', "V's helm"]) || this.player.leagues.six.cullingSpree;
   }
 
   /**
@@ -346,7 +346,7 @@ export default class BaseCalc {
   }
 
   protected isWearingBlowpipe(): boolean {
-    return this.wearing(['Toxic blowpipe', 'Blazing blowpipe']);
+    return this.wearing(['Toxic blowpipe', 'Blazing blowpipe', 'Drygore blowpipe']);
   }
 
   protected isWearingGodsword(): boolean {
@@ -370,6 +370,7 @@ export default class BaseCalc {
       'Sulphur blades',
       'Glacial temotli',
       'Earthbound tecpatl',
+      'Infernal tecpatl',
     ]);
   }
 
@@ -539,6 +540,10 @@ export default class BaseCalc {
       return true;
     }
 
+    if (weapon.name === "King's barrage") {
+      return true;
+    }
+
     return false;
   }
 
@@ -609,7 +614,7 @@ export default class BaseCalc {
         return this.wearing(['Scorching bow']);
 
       default:
-        return this.wearing(['Silverlight', 'Darklight', 'Arclight', 'Emberlight', 'Bone claws', 'Burning claws']);
+        return this.wearing(['Silverlight', 'Darklight', 'Arclight', 'Emberlight', 'Bone claws', 'Burning claws', 'Infernal tecpatl']);
     }
   }
 

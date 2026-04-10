@@ -138,6 +138,10 @@ export interface Player extends EquipmentStats {
      */
     baAttackerLevel: number;
     /**
+     * Shatter stacks for the Lithic sceptre.
+     */
+    lithicShatterStacks: number;
+    /**
      * Distance from the monster. Used for chinchompa accuracy modifiers, ignored otherwise.
      * @see https://oldschool.runescape.wiki/w/Chinchompa#Chinchompa_guide
      */

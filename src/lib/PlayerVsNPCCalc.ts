@@ -182,6 +182,94 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     return this.player.skills.magic + magicBoost;
   }
 
+  private getRepeatedMeleeMinHitBonus(): number {
+    if (!this.isUsingMeleeStyle()) {
+      return 0;
+    }
+
+    const { effects } = this.player.leagues.six;
+    const distanceToEnemy = this.getLeagueDistanceToEnemy();
+    let bonus = 0;
+
+    if (effects.talent_distance_melee_minhit) {
+      bonus += effects.talent_distance_melee_minhit * (distanceToEnemy + 1);
+    }
+
+    if (effects.talent_overheal_consumption_boost && this.player.boosts.hp >= 5) {
+      bonus += 5;
+    }
+
+    return bonus;
+  }
+
+  private getElementalWeaknessSeverity(spellement: Spellement | null): number {
+    if (!spellement || !['air', 'water', 'earth', 'fire'].includes(spellement)) {
+      return 0;
+    }
+
+    let severity = 0;
+    if (this.monster.weakness?.element === spellement) {
+      severity += this.monster.weakness.severity;
+    }
+
+    if (this.wearing("Devil's element")) {
+      severity += 30;
+    }
+
+    return severity;
+  }
+
+  private getCustomElementalMagicMaxHit(baseMax: number, spellement: Spellement): number {
+    let maxHit = Math.max(1, baseMax);
+    let magicDmgBonus = this.player.bonuses.magic_str;
+    for (const prayer of this.getCombatPrayers('magicDamageBonus')) {
+      magicDmgBonus += prayer.magicDamageBonus!;
+    }
+
+    maxHit = Math.trunc(maxHit * (1000 + magicDmgBonus) / 1000);
+
+    const weaknessSeverity = this.getElementalWeaknessSeverity(spellement);
+    if (weaknessSeverity > 0) {
+      maxHit += Math.trunc(baseMax * weaknessSeverity / 100);
+    }
+
+    if (spellement === 'water' && this.player.leagues.six.effects.talent_water_spell_damage_high_hp) {
+      const currentHp = this.getCurrentHp();
+      const factorNumerator = this.player.skills.hp * 100 + currentHp * 20;
+      maxHit = Math.trunc(maxHit * factorNumerator / (this.player.skills.hp * 100));
+    }
+
+    if (spellement === 'fire' && this.player.leagues.six.effects.talent_fire_hp_consume_for_damage) {
+      const hpToBurn = Math.max(0, Math.min(
+        Math.trunc(this.getCurrentHp() * 0.06),
+        this.getCurrentHp() - 1,
+      ));
+      maxHit += hpToBurn * 2;
+    }
+
+    return maxHit;
+  }
+
+  private getCrystalArmourPieceScore(): number {
+    return (this.wearing('Crystal helm') ? 1 : 0)
+      + (this.wearing('Crystal legs') ? 2 : 0)
+      + (this.wearing('Crystal body') ? 3 : 0);
+  }
+
+  private hasCrystalBlessingTransferBonus(): boolean {
+    if (this.player.equipment.ammo?.name !== 'Crystal blessing') {
+      return false;
+    }
+
+    if (this.isUsingMeleeStyle()) {
+      return true;
+    }
+
+    return this.player.style.type === 'magic'
+      && [EquipmentCategory.POWERED_STAFF, EquipmentCategory.POWERED_WAND]
+        .includes(this.player.equipment.weapon?.category ?? EquipmentCategory.NONE);
+  }
+
   private getBlindbagStyleForWeapon(weaponCategory: EquipmentCategory) {
     const styles = getCombatStylesForCategory(weaponCategory)
       .filter((style) => style.type !== null && style.stance !== null);
@@ -438,6 +526,12 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     const gearBonus = this.trackAdd(DetailKey.PLAYER_ACCURACY_GEAR_BONUS, style.type ? this.player.offensive[style.type] : 0, 64);
     const baseRoll = this.trackFactor(DetailKey.PLAYER_ACCURACY_ROLL_BASE, effectiveLevel, [gearBonus, 1]);
     let attackRoll = baseRoll;
+
+    if (this.hasCrystalBlessingTransferBonus()) {
+      const crystalPieces = this.getCrystalArmourPieceScore();
+      attackRoll = Math.trunc(attackRoll * (20 + crystalPieces) / 20);
+    }
+
     // Specific bonuses that are applied from equipment
     const mattrs = this.monster.attributes;
     const { buffs } = this.player;
@@ -464,6 +558,9 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     }
     if (this.wearing(['Arclight', 'Emberlight']) && mattrs.includes(MonsterAttribute.DEMON)) {
       attackRoll = this.trackAddFactor(DetailKey.PLAYER_ACCURACY_DEMONBANE, attackRoll, this.demonbaneFactor(70));
+    }
+    if (this.wearing('Infernal tecpatl') && mattrs.includes(MonsterAttribute.DEMON)) {
+      attackRoll = this.trackAddFactor(DetailKey.PLAYER_ACCURACY_DEMONBANE, attackRoll, this.demonbaneFactor(10));
     }
     if (this.wearing(['Bone claws', 'Burning claws']) && mattrs.includes(MonsterAttribute.DEMON)) {
       attackRoll = this.trackAddFactor(DetailKey.PLAYER_ACCURACY_DEMONBANE, attackRoll, this.demonbaneFactor(5));
@@ -527,6 +624,8 @@ export default class PlayerVsNPCCalc extends BaseCalc {
         attackRoll = this.trackFactor(DetailKey.PLAYER_ACCURACY_SPEC, attackRoll, [23, 20]);
       } else if (this.wearing('Abyssal dagger')) {
         attackRoll = this.trackFactor(DetailKey.PLAYER_ACCURACY_SPEC, attackRoll, [5, 4]);
+      } else if (this.wearing('Infernal tecpatl')) {
+        attackRoll = this.trackFactor(DetailKey.PLAYER_ACCURACY_SPEC, attackRoll, [5, 4]);
       } else if (this.wearing('Soulreaper axe')) {
         const stacks = Math.max(0, Math.min(5, this.player.buffs.soulreaperStacks));
         attackRoll = this.trackFactor(DetailKey.PLAYER_ACCURACY_SPEC, attackRoll, [100 + 6 * stacks, 100]);
@@ -583,6 +682,11 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     const baseMax = this.trackMaxHitFromEffective(DetailKey.MAX_HIT_BASE, effectiveLevel, gearBonus);
     let [minHit, maxHit]: MinMax = [0, baseMax];
 
+    if (this.hasCrystalBlessingTransferBonus()) {
+      const crystalPieces = this.getCrystalArmourPieceScore();
+      maxHit = Math.trunc(maxHit * (40 + crystalPieces) / 40);
+    }
+
     // Specific bonuses that are applied from equipment
     const mattrs = this.monster.attributes;
 
@@ -600,6 +704,9 @@ export default class PlayerVsNPCCalc extends BaseCalc {
 
     if (this.wearing(['Arclight', 'Emberlight']) && mattrs.includes(MonsterAttribute.DEMON)) {
       maxHit = this.trackAddFactor(DetailKey.MAX_HIT_DEMONBANE, maxHit, this.demonbaneFactor(70));
+    }
+    if (this.wearing('Infernal tecpatl') && mattrs.includes(MonsterAttribute.DEMON)) {
+      maxHit = this.trackAddFactor(DetailKey.MAX_HIT_DEMONBANE, maxHit, this.demonbaneFactor(10));
     }
     if (this.wearing(['Bone claws', 'Burning claws']) && mattrs.includes(MonsterAttribute.DEMON)) {
       maxHit = this.trackAddFactor(DetailKey.MAX_HIT_DEMONBANE, maxHit, this.demonbaneFactor(5));
@@ -697,6 +804,8 @@ export default class PlayerVsNPCCalc extends BaseCalc {
         maxHit = this.trackFactor(DetailKey.MAX_HIT_SPEC, maxHit, [23, 20]);
       } else if (this.wearing('Abyssal dagger')) {
         maxHit = this.trackFactor(DetailKey.MAX_HIT_SPEC, maxHit, [17, 20]);
+      } else if (this.wearing('Infernal tecpatl')) {
+        maxHit = this.trackFactor(DetailKey.MAX_HIT_SPEC, maxHit, [5, 4]);
       } else if (this.wearing('Abyssal bludgeon')) {
         const prayerMissing = Math.max(-this.player.boosts.prayer, 0);
         maxHit = this.trackFactor(DetailKey.MAX_HIT_SPEC, maxHit, [100 + (prayerMissing / 2), 100]);
@@ -1081,6 +1190,11 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     const baseRoll = effectiveLevel * (magicBonus + 64);
     let attackRoll = baseRoll;
 
+    if (this.hasCrystalBlessingTransferBonus()) {
+      const crystalPieces = this.getCrystalArmourPieceScore();
+      attackRoll = Math.trunc(attackRoll * (20 + crystalPieces) / 20);
+    }
+
     let additiveBonus = 0;
     let blackMaskBonus = false;
     if (this.wearing('Amulet of avarice') && this.monster.name.startsWith('Revenant')) {
@@ -1147,12 +1261,10 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     }
 
     const spellement = this.getSpellement();
-    if (this.monster.weakness && spellement) {
-      if (spellement === this.monster.weakness.element) {
-        const severity = this.monster.weakness.severity;
-        const bonus = this.trackFactor(DetailKey.PLAYER_ACCURACY_SPELLEMENT_BONUS, baseRoll, [severity, 100]);
-        attackRoll = this.trackAdd(DetailKey.PLAYER_ACCURACY_SPELLEMENT, attackRoll, bonus);
-      }
+    const weaknessSeverity = this.getElementalWeaknessSeverity(spellement);
+    if (weaknessSeverity > 0) {
+      const bonus = this.trackFactor(DetailKey.PLAYER_ACCURACY_SPELLEMENT_BONUS, baseRoll, [weaknessSeverity, 100]);
+      attackRoll = this.trackAdd(DetailKey.PLAYER_ACCURACY_SPELLEMENT, attackRoll, bonus);
     }
 
     return attackRoll;
@@ -1198,6 +1310,8 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       }
     } else if (this.wearing("Tumeken's shadow")) {
       maxHit = Math.max(1, Math.trunc(magicLevel / 3) + 1);
+    } else if (this.wearing('Lithic sceptre')) {
+      maxHit = Math.max(10, Math.trunc(magicLevel / 3) - 10);
     } else if (this.wearing('Eye of ayak')) {
       maxHit = Math.max(1, Math.trunc(magicLevel / 3) - 6);
     } else if (this.wearing('Warped sceptre')) {
@@ -1234,6 +1348,11 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       return [0, 0];
     }
     this.track(DetailKey.MAX_HIT_BASE, maxHit);
+
+    if (this.hasCrystalBlessingTransferBonus()) {
+      const crystalPieces = this.getCrystalArmourPieceScore();
+      maxHit = Math.trunc(maxHit * (40 + crystalPieces) / 40);
+    }
 
     if (this.opts.usingSpecialAttack && this.wearing('Eye of ayak')) {
       maxHit = this.trackFactor(DetailKey.MAX_HIT_SPEC, maxHit, [13, 10]);
@@ -1294,16 +1413,16 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     if (this.opts.usingSpecialAttack) {
       if (this.isWearingAccursedSceptre()) {
         maxHit = this.trackFactor(DetailKey.MAX_HIT_SPEC, maxHit, [3, 2]);
+      } else if (this.wearing('Lithic sceptre')) {
+        maxHit = this.trackFactor(DetailKey.MAX_HIT_SPEC, maxHit, [13, 10]);
       }
     }
 
     const spellement = this.getSpellement();
-    if (this.monster.weakness && spellement) {
-      if (spellement === this.monster.weakness.element) {
-        const severity = this.monster.weakness.severity;
-        const bonus = this.trackFactor(DetailKey.MAX_HIT_SPELLEMENT_BONUS, baseMax, [severity, 100]);
-        maxHit = this.trackAdd(DetailKey.MAX_HIT_SPELLEMENT, maxHit, bonus);
-      }
+    const weaknessSeverity = this.getElementalWeaknessSeverity(spellement);
+    if (weaknessSeverity > 0) {
+      const bonus = this.trackFactor(DetailKey.MAX_HIT_SPELLEMENT_BONUS, baseMax, [weaknessSeverity, 100]);
+      maxHit = this.trackAdd(DetailKey.MAX_HIT_SPELLEMENT, maxHit, bonus);
     }
 
     if (this.player.buffs.usingSunfireRunes && canUseSunfireRunes(this.player.spell)) {
@@ -1584,6 +1703,13 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       );
     }
 
+    if (this.wearing('Drygore blowpipe')) {
+      hitChance = this.track(
+        DetailKey.LEAGUES_CROSSBOW_DOUBLE_ACCURACY,
+        BaseCalc.getFangAccuracyRoll(atk, def),
+      );
+    }
+
     if (this.isWearingFang() && this.player.style.type === 'stab') {
       if (TOMBS_OF_AMASCUT_MONSTER_IDS.includes(this.monster.id)) {
         hitChance = this.track(DetailKey.PLAYER_ACCURACY_FANG_TOA, 1 - (1 - hitChance) ** 2);
@@ -1630,6 +1756,13 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     if (ret !== 0) {
       this.track(DetailKey.DOT_EXPECTED, ret);
     }
+
+    if (!this.opts.usingSpecialAttack
+      && this.wearing('Drygore blowpipe')
+      && !this.isImmuneToNormalBurns()) {
+      ret += this.getHitChance() * 0.25;
+      this.track(DetailKey.DOT_EXPECTED, ret);
+    }
     return ret;
   }
 
@@ -1653,6 +1786,13 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     }
 
     if (ret !== 0) {
+      this.track(DetailKey.DOT_MAX, ret);
+    }
+
+    if (!this.opts.usingSpecialAttack
+      && this.wearing('Drygore blowpipe')
+      && !this.isImmuneToNormalBurns()) {
+      ret = Math.max(ret, 1);
       this.track(DetailKey.DOT_MAX, ret);
     }
     return ret;
@@ -1729,6 +1869,12 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     const acc = this.getHitChance();
     const [min, max] = this.getMinAndMax();
     const style = this.player.style.type;
+    const repeatedMeleeMinHitBonus = this.getRepeatedMeleeMinHitBonus();
+    const splitBaseMin = Math.max(0, min - repeatedMeleeMinHitBonus);
+    const withRepeatedMeleeMinimum = (splitMin: number, splitMax: number): MinMax => {
+      const minimum = splitMin + repeatedMeleeMinHitBonus;
+      return [minimum, Math.max(minimum, splitMax)];
+    };
 
     if (max === 0) {
       return new AttackDistribution([new HitDistribution([new WeightedHit(1.0, [Hitsplat.INACCURATE])])]);
@@ -1810,6 +1956,9 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       if (this.wearing('Dragon claws')) {
         accurateZeroApplicable = false;
         dist = dClawDist(acc, max);
+      } else if (this.wearing('Infernal tecpatl')) {
+        accurateZeroApplicable = false;
+        dist = dClawDist(acc, max);
       } else if (this.wearing(['Bone claws', 'Burning claws'])) {
         accurateZeroApplicable = false;
         dist = burningClawSpec(acc, max);
@@ -1889,16 +2038,26 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     if (this.isUsingMeleeStyle() && this.isWearingScythe()) {
       const hits: HitDistribution[] = [];
       for (let i = 0; i < Math.min(Math.max(this.monster.size, 1), 3); i++) {
-        const splatMin = Math.trunc(min / (2 ** i));
-        const splatMax = Math.trunc(max / (2 ** i));
+        const [splatMin, splatMax] = withRepeatedMeleeMinimum(
+          Math.trunc(splitBaseMin / (2 ** i)),
+          Math.trunc(max / (2 ** i)),
+        );
         hits.push(HitDistribution.linear(acc, splatMin, splatMax));
       }
       dist = new AttackDistribution(hits);
     }
 
     if (this.isUsingMeleeStyle() && this.wearing('Dual macuahuitl')) {
-      const secondHit = HitDistribution.linear(acc, min - Math.trunc(min / 2), max - Math.trunc(max / 2));
-      const firstHit = new AttackDistribution([HitDistribution.linear(acc, Math.trunc(min / 2), Math.trunc(max / 2))]);
+      const [firstMin, firstMax] = withRepeatedMeleeMinimum(
+        Math.trunc(splitBaseMin / 2),
+        Math.trunc(max / 2),
+      );
+      const [secondMin, secondMax] = withRepeatedMeleeMinimum(
+        splitBaseMin - Math.trunc(splitBaseMin / 2),
+        max - Math.trunc(max / 2),
+      );
+      const secondHit = HitDistribution.linear(acc, secondMin, secondMax);
+      const firstHit = new AttackDistribution([HitDistribution.linear(acc, firstMin, firstMax)]);
       dist = firstHit.transform(
         (h) => {
           if (h.accurate) {
@@ -1909,10 +2068,28 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       );
     }
 
-    if (this.isUsingMeleeStyle() && this.isWearingTwoHitWeapon()) {
+    if (this.isUsingMeleeStyle() && this.isWearingTwoHitWeapon() && !(this.opts.usingSpecialAttack && this.wearing('Infernal tecpatl'))) {
+      const [firstMin, firstMax] = withRepeatedMeleeMinimum(
+        Math.trunc(splitBaseMin / 2),
+        Math.trunc(max / 2),
+      );
+      const [secondMin, secondMax] = withRepeatedMeleeMinimum(
+        splitBaseMin - Math.trunc(splitBaseMin / 2),
+        max - Math.trunc(max / 2),
+      );
       dist = new AttackDistribution([
-        HitDistribution.linear(acc, Math.trunc(min / 2), Math.trunc(max / 2)),
-        HitDistribution.linear(acc, min - Math.trunc(min / 2), max - Math.trunc(max / 2)),
+        HitDistribution.linear(acc, firstMin, firstMax),
+        HitDistribution.linear(acc, secondMin, secondMax),
+      ]);
+    }
+
+    if (style === 'ranged' && this.wearing("King's barrage")) {
+      const secondBoltMax = this.player.leagues.six.effects.talent_ice_counts_as_water
+        ? this.getCustomElementalMagicMaxHit(max, 'water')
+        : max;
+      dist = new AttackDistribution([
+        standardHitDist,
+        HitDistribution.linear(acc, min, secondBoltMax),
       ]);
     }
 
@@ -2047,6 +2224,40 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     if (accurateZeroApplicable) {
       dist = dist.transform(
         (h) => HitDistribution.single(1.0, [new Hitsplat(Math.max(h.damage, 1))]),
+        { transformInaccurate: false },
+      );
+    }
+
+    if (this.wearing('Fang of the hound')) {
+      const flamesMax = this.getCustomElementalMagicMaxHit(10, 'fire');
+      dist = dist.transform(
+        (h) => {
+          if (!this.opts.usingSpecialAttack && !h.accurate) {
+            return HitDistribution.single(1.0, [h]);
+          }
+
+          const followUp = HitDistribution.linear(1.0, 0, flamesMax);
+          if (this.opts.usingSpecialAttack) {
+            return new HitDistribution([new WeightedHit(1.0, [h])]).zip(followUp);
+          }
+
+          const procFollowUp = followUp.scaleProbability(0.05);
+          procFollowUp.addHit(new WeightedHit(0.95, [Hitsplat.INACCURATE]));
+          return new HitDistribution([new WeightedHit(1.0, [h])]).zip(procFollowUp);
+        },
+        { transformInaccurate: true },
+      );
+    }
+
+    if (style === 'magic'
+      && this.wearing('Shadowflame quadrant')
+      && this.player.spell?.spellbook === 'standard'
+      && this.getSpellement() !== null) {
+      dist = dist.transform(
+        (h) => HitDistribution.single(1.0, [
+          h,
+          new Hitsplat(Math.trunc(h.damage * 4 / 10), h.accurate),
+        ]),
         { transformInaccurate: false },
       );
     }
@@ -2526,6 +2737,16 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       const ticksPerSpec = this.getAttackSpeed() * this.player.buffs.soulreaperStacks;
       return this.getDps() * this.getExpectedAttackSpeed() / ticksPerSpec;
     }
+    if (this.wearing('Lithic sceptre')) {
+      const stacks = this.player.buffs.lithicShatterStacks;
+      if (stacks < 5) {
+        return 0;
+      }
+
+      // Assumes one landed hit adds one stack and the spec is used when the configured stack count is reached.
+      const ticksPerSpec = this.getAttackSpeed() * stacks;
+      return this.getDps() * this.getExpectedAttackSpeed() / ticksPerSpec;
+    }
 
     const specCost = this.getSpecCost();
     if (!specCost) {
@@ -2768,6 +2989,11 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     }
     if (this.wearing('Soulreaper axe')) {
       return this.player.buffs.soulreaperStacks === 0
+        ? FeatureStatus.NOT_APPLICABLE
+        : FeatureStatus.IMPLEMENTED;
+    }
+    if (this.wearing('Lithic sceptre')) {
+      return this.player.buffs.lithicShatterStacks < 5
         ? FeatureStatus.NOT_APPLICABLE
         : FeatureStatus.IMPLEMENTED;
     }

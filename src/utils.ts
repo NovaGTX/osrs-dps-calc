@@ -604,6 +604,14 @@ export const getCombatStylesForCategory = (style: EquipmentCategory): PlayerComb
         { name: 'Longrange', type: 'ranged', stance: 'Longrange' },
       ];
       break;
+    case EquipmentCategory.DAGGER:
+      ret = [
+        { name: 'Stab', type: 'stab', stance: 'Accurate' },
+        { name: 'Lunge', type: 'stab', stance: 'Aggressive' },
+        { name: 'Slash', type: 'slash', stance: 'Aggressive' },
+        { name: 'Block', type: 'stab', stance: 'Defensive' },
+      ];
+      break;
     case EquipmentCategory.GUN:
       ret = [
         // {name: 'Aim and Fire', type: '', stance: ''},
