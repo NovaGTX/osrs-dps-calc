@@ -1,0 +1,56 @@
+  name: Deploy GitHub Pages
+
+  on:
+    push:
+      branches: [main]
+
+  permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+  concurrency:
+    group: github-pages
+    cancel-in-progress: true
+
+  jobs:
+    build:
+      runs-on: ubuntu-latest
+      env:
+        NEXT_PUBLIC_BASE_PATH: /osrs-dps-calc
+
+      steps:
+        - uses: actions/checkout@v4
+
+        - name: Enable Corepack
+          run: corepack enable
+
+        - uses: actions/setup-node@v4
+          with:
+            node-version: 24
+            cache: yarn
+
+        - name: Install
+          run: yarn install
+
+        - name: Build
+          run: yarn build
+
+        - name: Include CDN assets
+          run: mv cdn out/
+
+        - name: Prevent Jekyll processing
+          run: touch out/.nojekyll
+
+        - uses: actions/upload-pages-artifact@v3
+          with:
+            path: out
+
+    deploy:
+      needs: build
+      runs-on: ubuntu-latest
+      environment:
+        name: github-pages
+
+      steps:
+        - uses: actions/deploy-pages@v4
