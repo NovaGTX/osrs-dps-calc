@@ -297,8 +297,8 @@ export const placeAmmoInQuiverSlots = (
 export const getCanonicalEquipment = (inputEq: PlayerEquipment) => {
   // canonicalize equipment ids
   let canonicalized: PlayerEquipment = {
-    ammo2: null,
     ...inputEq,
+    ammo2: inputEq.ammo2 ?? null,
   };
   for (const k of keys(canonicalized)) {
     const v = canonicalized[k];

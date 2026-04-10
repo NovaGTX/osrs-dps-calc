@@ -756,15 +756,15 @@ class GlobalState implements State {
     if (eq && Object.hasOwn(eq, 'ammo') && eq.ammo !== undefined && !Object.hasOwn(eq, 'ammo2')) {
       const ammoPlacementContext = {
         ...currentEquipment,
-        ...player.equipment,
+        ...(player.equipment as Partial<PlayerEquipment>),
         ammo: currentEquipment.ammo,
         ammo2: currentEquipment.ammo2,
-      };
+      } as PlayerEquipment;
       player = {
         ...player,
         equipment: {
           ...player.equipment,
-          ...placeAmmoInQuiverSlots(ammoPlacementContext, eq.ammo),
+          ...placeAmmoInQuiverSlots(ammoPlacementContext, eq.ammo as EquipmentPiece | null),
         },
       };
     }

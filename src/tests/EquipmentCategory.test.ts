@@ -57,5 +57,5 @@ test('generateEmptyPlayer includes lithic sceptre stacks with a zero default', (
 });
 
 test('generateEmptyPlayer includes a second ammo slot for quiver setups', () => {
-  expect((generateEmptyPlayer().equipment as Record<string, unknown>).ammo2).toBe(null);
+  expect(generateEmptyPlayer().equipment.ammo2).toBe(null);
 });
