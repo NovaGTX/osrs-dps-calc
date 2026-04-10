@@ -1,4 +1,4 @@
-import { Player } from '@/types/Player';
+import { EquipmentPiece, Player } from '@/types/Player';
 import { Monster } from '@/types/Monster';
 import {
   AttackDistribution,
@@ -21,6 +21,7 @@ import {
   Spellement,
 } from '@/types/Spell';
 import { PrayerData, PrayerMap } from '@/enums/Prayer';
+import Potion from '@/enums/Potion';
 import { isVampyre, MonsterAttribute } from '@/enums/MonsterAttribute';
 import {
   ABYSSAL_SIRE_TRANSITION_IDS,
@@ -128,11 +129,25 @@ const getPrayerMitigationKey = (
   return null;
 };
 
+const NON_STACKING_MAGIC_BOOST_POTIONS = new Set<Potion>([
+  Potion.ANCIENT,
+  Potion.FORGOTTEN_BREW,
+  Potion.IMBUED_HEART,
+  Potion.MAGIC,
+  Potion.OVERLOAD,
+  Potion.OVERLOAD_PLUS,
+  Potion.SATURATED_HEART,
+  Potion.SMELLING_SALTS,
+  Potion.SUPER_MAGIC,
+]);
+
 /**
  * Class for computing various player-vs-NPC metrics.
  */
 export default class PlayerVsNPCCalc extends BaseCalc {
   private memoizedDist?: AttackDistribution;
+
+  private memoizedDistWithoutBlindbag?: AttackDistribution;
 
   constructor(player: Player, monster: Monster, opts: Partial<CalcOpts> = {}) {
     super(player, monster, opts);
@@ -158,7 +173,13 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       )
       : 0;
 
-    return this.player.skills.magic + this.player.boosts.magic + bonus;
+    const hasNonStackingPotionBoost = this.player.buffs.potions
+      .some((potion) => NON_STACKING_MAGIC_BOOST_POTIONS.has(potion));
+    const magicBoost = hasNonStackingPotionBoost
+      ? Math.max(this.player.boosts.magic, bonus)
+      : this.player.boosts.magic + bonus;
+
+    return this.player.skills.magic + magicBoost;
   }
 
   private getBlindbagStyleForWeapon(weaponCategory: EquipmentCategory) {
@@ -168,25 +189,45 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     return styles.find((style) => style.type === this.player.style.type) ?? styles[0];
   }
 
+  private getBlindbagUniqueWeapons(): EquipmentPiece[] {
+    const uniqueWeapons = new Map<number, EquipmentPiece>();
+    for (const weapon of this.player.leagues.six.blindbagWeapons) {
+      if (!uniqueWeapons.has(weapon.id)) {
+        uniqueWeapons.set(weapon.id, weapon);
+      }
+
+      if (uniqueWeapons.size >= 5) {
+        break;
+      }
+    }
+
+    return Array.from(uniqueWeapons.values());
+  }
+
+  private getBlindbagUniqueWeaponCount(): number {
+    return this.getBlindbagUniqueWeapons().length;
+  }
+
   private getBlindbagTriggerChance(): number {
-    const { effects, blindbagWeapons } = this.player.leagues.six;
+    const { effects } = this.player.leagues.six;
     const blindbagBaseChance = effects.talent_free_random_weapon_attack_chance ?? 0;
     if (blindbagBaseChance <= 0) {
       return 0;
     }
 
-    const uniqueWeaponCount = Math.min(blindbagWeapons.length, 5);
+    const uniqueWeaponCount = this.getBlindbagUniqueWeaponCount();
     const uniqueChanceBonus = effects.talent_unique_blindbag_chance ? uniqueWeaponCount * 2 : 0;
     return Math.min(1, (blindbagBaseChance + uniqueChanceBonus) / 100);
   }
 
   private getBlindbagExpectedDamage(): number {
-    const { effects, blindbagWeapons } = this.player.leagues.six;
     const currentWeapon = this.player.equipment.weapon;
+    const uniqueBlindbagWeapons = this.getBlindbagUniqueWeapons();
     if (!this.isUsingMeleeStyle()
       || this.opts.usingSpecialAttack
+      || this.opts.isBlindBag
       || (currentWeapon?.weight ?? 0) < 1
-      || blindbagWeapons.length === 0) {
+      || uniqueBlindbagWeapons.length === 0) {
       return 0;
     }
 
@@ -195,10 +236,7 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       return 0;
     }
 
-    const uniqueWeaponCount = Math.min(blindbagWeapons.length, 5);
-    const damageBonusPercent = (effects.talent_unique_blindbag_damage ?? 0) * uniqueWeaponCount;
-
-    const perWeaponExpectedDamage = blindbagWeapons.map((weapon) => {
+    const perWeaponExpectedDamage = uniqueBlindbagWeapons.map((weapon) => {
       const style = this.getBlindbagStyleForWeapon(weapon.category);
       if (!style) {
         return 0;
@@ -217,10 +255,9 @@ export default class PlayerVsNPCCalc extends BaseCalc {
           six: {
             ...this.player.leagues.six,
             effects: {
-              ...effects,
+              ...this.player.leagues.six.effects,
               talent_free_random_weapon_attack_chance: 0,
               talent_unique_blindbag_chance: 0,
-              talent_unique_blindbag_damage: 0,
             },
           },
         },
@@ -231,16 +268,86 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       player.offensive = gearBonuses.offensive;
       player.defensive = gearBonuses.defensive;
 
-      const subCalc = this.noInitSubCalc(player, this.monster, {
+      return this.noInitSubCalc(player, this.monster, {
         loadoutName: `${this.opts.loadoutName}/blindbag/${weapon.id}`,
-      });
-
-      const expectedDamage = subCalc.getExpectedDamage();
-      return Math.trunc(expectedDamage * (100 + damageBonusPercent) / 100);
+        isBlindBag: true,
+      }).getExpectedDamage();
     });
 
     const averageExpectedDamage = sum(perWeaponExpectedDamage) / perWeaponExpectedDamage.length;
     return triggerChance * averageExpectedDamage / (1 - triggerChance);
+  }
+
+  private buildDependentEchoChain(
+    currentEchoDist: HitDistribution,
+    followUpEchoDist: HitDistribution,
+    remainingFollowUps: number,
+  ): HitDistribution {
+    if (remainingFollowUps === 0) {
+      return currentEchoDist;
+    }
+
+    const chainedFollowUps = this.buildDependentEchoChain(followUpEchoDist, followUpEchoDist, remainingFollowUps - 1);
+    const chainedEchoes = new HitDistribution([]);
+
+    for (const hit of currentEchoDist.hits) {
+      if (!hit.anyAccurate()) {
+        chainedEchoes.addHit(hit);
+        continue;
+      }
+
+      for (const tail of chainedFollowUps.hits) {
+        chainedEchoes.addHit(hit.zip(tail));
+      }
+    }
+
+    return chainedEchoes.cumulative();
+  }
+
+  private getEchoAttackDist(acc: number, min: number, max: number): HitDistribution | null {
+    const leagues = this.player.leagues.six;
+    const rangedEcho = this.player.style.type === 'ranged' && leagues.effects.talent_ranged_regen_echo_chance;
+    const meleeEcho = this.isUsingMeleeStyle() && leagues.effects.talent_2h_melee_echos && this.player.equipment.weapon?.isTwoHanded;
+    if (!(rangedEcho || meleeEcho)) {
+      return null;
+    }
+
+    const isWearingBow = meleeEcho || (this.player.equipment.weapon?.category === EquipmentCategory.BOW && !this.wearing('Eclipse atlatl'));
+    const isWearingCrossbow = meleeEcho || this.player.equipment.weapon?.category === EquipmentCategory.CROSSBOW;
+    const isWearingThrown = meleeEcho || (this.player.equipment.weapon?.category === EquipmentCategory.THROWN || this.wearing('Eclipse atlatl'));
+
+    let triggerChance = (meleeEcho ? 5 : leagues.effects.talent_ranged_regen_echo_chance!) / 100;
+    if (leagues.effects.talent_crossbow_echo_reproc_chance && isWearingCrossbow) {
+      triggerChance += leagues.effects.talent_crossbow_echo_reproc_chance / 100;
+    }
+    this.track(DetailKey.LEAGUES_ECHO_CHANCE_TRIGGER, triggerChance);
+
+    let echoChance = triggerChance;
+    if (rangedEcho) {
+      const regenChance = (leagues.effects.talent_regen_ammo ?? 0) / 100;
+      echoChance *= regenChance;
+      this.track(DetailKey.LEAGUES_ECHO_CHANCE_REGEN, echoChance);
+    }
+
+    let echoAcc = acc;
+    if (leagues.effects.talent_bow_always_pass_accuracy && isWearingBow) {
+      echoAcc = 1;
+    }
+    echoChance *= echoAcc;
+
+    this.track(DetailKey.LEAGUES_ECHO_CHANCE_ACCURACY, echoChance);
+
+    let echoDist = HitDistribution.linear(echoChance, min, max);
+    if (leagues.effects.talent_thrown_maxhit_echoes && isWearingThrown) {
+      const effectChance = 0.2;
+      echoDist = echoDist.scaleProbability(1 - effectChance);
+      echoDist.addHit(new WeightedHit(effectChance * acc, [new Hitsplat(max)]));
+      echoDist.addHit(new WeightedHit(effectChance * (1 - acc), [Hitsplat.INACCURATE]));
+      echoDist = echoDist.flatten();
+    }
+
+    this.trackDist(DetailKey.DIST_LEAGUES_ECHO, echoDist);
+    return echoDist;
   }
 
   /**
@@ -618,6 +725,11 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     if (this.player.leagues.six.effects.talent_multi_hit_str_increase && (weaponWeight < 1 || isOneHanded)) {
       const strengthBonus = Math.trunc(this.player.skills.str * 0.20);
       maxHit = this.trackFactor(DetailKey.LEAGUES_MULTI_HIT_STR_INCREASE, maxHit, [100 + strengthBonus, 100]);
+    }
+
+    if (this.player.leagues.six.effects.talent_unique_blindbag_damage && this.opts.isBlindBag) {
+      const damageBonusPercent = this.player.leagues.six.effects.talent_unique_blindbag_damage * this.getBlindbagUniqueWeaponCount();
+      maxHit = this.trackFactor('Player blindbag uniques max hit', maxHit, [100 + damageBonusPercent, 100]);
     }
 
     const distanceToEnemy = this.getLeagueDistanceToEnemy();
@@ -1206,7 +1318,7 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     }
 
     if (spellement === 'water' && this.player.leagues.six.effects.talent_water_spell_damage_high_hp) {
-      const currentHp = Math.min(this.player.skills.hp, this.getCurrentHp());
+      const currentHp = this.getCurrentHp();
       const factorNumerator = this.player.skills.hp * 100 + currentHp * 20;
       maxHit = this.trackFactor(
         'Player magic max hit leagues talent_water_spell_damage_high_hp',
@@ -1217,7 +1329,7 @@ export default class PlayerVsNPCCalc extends BaseCalc {
 
     if (spellement === 'fire' && this.player.leagues.six.effects.talent_fire_hp_consume_for_damage) {
       const hpToBurn = Math.max(0, Math.min(
-        Math.trunc(this.player.skills.hp * 0.06),
+        Math.trunc(this.getCurrentHp() * 0.06),
         this.getCurrentHp() - 1,
       ));
       const bonusDamage = hpToBurn * 2;
@@ -1309,6 +1421,10 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     }
     if (style === 'magic') {
       minMax = this.getPlayerMaxMagicHit();
+    }
+
+    if (minMax[0] > minMax[1]) {
+      minMax[0] = minMax[1];
     }
 
     // some cursed (literally, cursed amulet of magic) stuff throws this off
@@ -1550,9 +1666,10 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     const blindbagExpectedDamage = this.getBlindbagExpectedDamage();
     if (blindbagExpectedDamage > 0) {
       this.track('Player expected damage leagues blindbag', blindbagExpectedDamage);
+      return this.getDistributionWithoutBlindbag().getExpectedDamage() + this.getDoTExpected() + blindbagExpectedDamage;
     }
 
-    return this.getDistribution().getExpectedDamage() + this.getDoTExpected() + blindbagExpectedDamage;
+    return this.getDistribution().getExpectedDamage() + this.getDoTExpected();
   }
 
   public getDistribution(): AttackDistribution {
@@ -1564,10 +1681,35 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     return this.memoizedDist;
   }
 
-  private getDistributionImpl(): AttackDistribution {
-    const attackerDist = this.getAttackerDist();
+  private getDistributionWithoutBlindbag(): AttackDistribution {
+    if (this.memoizedDistWithoutBlindbag === undefined) {
+      this.memoizedDistWithoutBlindbag = this.getDistributionImpl(false);
+    }
+
+    return this.memoizedDistWithoutBlindbag;
+  }
+
+  private getDistributionImpl(includeBlindbag: boolean = true): AttackDistribution {
+    const cyclicalEchoEnabled = !!this.player.leagues.six.effects.talent_ranged_echo_cyclical;
+    const attackerDist = this.getAttackerDist(includeBlindbag, !cyclicalEchoEnabled);
 
     const npcDist = this.applyNpcTransforms(attackerDist);
+
+    if (cyclicalEchoEnabled) {
+      const acc = this.getHitChance();
+      const [min, max] = this.getMinAndMax();
+      const echoDist = this.getEchoAttackDist(acc, min, max);
+      if (echoDist) {
+        const followUpEchoDist = echoDist.scaleProbability(0.5);
+        followUpEchoDist.addHit(new WeightedHit(0.5, [Hitsplat.INACCURATE]));
+
+        const echoNpcDist = this.applyNpcTransforms(new AttackDistribution([echoDist])).singleHitsplat;
+        const followUpEchoNpcDist = this.applyNpcTransforms(new AttackDistribution([followUpEchoDist])).singleHitsplat;
+        const totalEchoDist = this.buildDependentEchoChain(echoNpcDist, followUpEchoNpcDist, 3);
+        this.trackDist(DetailKey.DIST_LEAGUES_ECHO_CYCLICAL, totalEchoDist);
+        npcDist.addDist(totalEchoDist);
+      }
+    }
 
     if (process.env.NEXT_PUBLIC_HIT_DIST_SANITY_CHECK) {
       npcDist.dists.forEach((hitDist, ix) => {
@@ -1582,7 +1724,7 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     return npcDist;
   }
 
-  private getAttackerDist(): AttackDistribution {
+  private getAttackerDist(includeBlindbag: boolean = true, includeEchoes: boolean = true): AttackDistribution {
     const mattrs = this.monster.attributes;
     const acc = this.getHitChance();
     const [min, max] = this.getMinAndMax();
@@ -1747,15 +1889,16 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     if (this.isUsingMeleeStyle() && this.isWearingScythe()) {
       const hits: HitDistribution[] = [];
       for (let i = 0; i < Math.min(Math.max(this.monster.size, 1), 3); i++) {
+        const splatMin = Math.trunc(min / (2 ** i));
         const splatMax = Math.trunc(max / (2 ** i));
-        hits.push(HitDistribution.linear(acc, Math.min(min, splatMax), splatMax));
+        hits.push(HitDistribution.linear(acc, splatMin, splatMax));
       }
       dist = new AttackDistribution(hits);
     }
 
     if (this.isUsingMeleeStyle() && this.wearing('Dual macuahuitl')) {
-      const secondHit = HitDistribution.linear(acc, 0, max - Math.trunc(max / 2));
-      const firstHit = new AttackDistribution([HitDistribution.linear(acc, 0, Math.trunc(max / 2))]);
+      const secondHit = HitDistribution.linear(acc, min - Math.trunc(min / 2), max - Math.trunc(max / 2));
+      const firstHit = new AttackDistribution([HitDistribution.linear(acc, Math.trunc(min / 2), Math.trunc(max / 2))]);
       dist = firstHit.transform(
         (h) => {
           if (h.accurate) {
@@ -1768,8 +1911,8 @@ export default class PlayerVsNPCCalc extends BaseCalc {
 
     if (this.isUsingMeleeStyle() && this.isWearingTwoHitWeapon()) {
       dist = new AttackDistribution([
-        HitDistribution.linear(acc, 0, Math.trunc(max / 2)),
-        HitDistribution.linear(acc, 0, max - Math.trunc(max / 2)),
+        HitDistribution.linear(acc, Math.trunc(min / 2), Math.trunc(max / 2)),
+        HitDistribution.linear(acc, min - Math.trunc(min / 2), max - Math.trunc(max / 2)),
       ]);
     }
 
@@ -1984,13 +2127,14 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       && (this.player.equipment.weapon?.weight ?? Infinity) < 1
       && leagues.effects.talent_light_weapon_doublehit) {
       const extraHitMax = Math.max(1, Math.trunc(max * 0.4));
-      dist.addDist(HitDistribution.linear(acc, 1, extraHitMax));
+      dist.addDist(HitDistribution.linear(acc, Math.min(min, extraHitMax), extraHitMax));
     }
 
     // monsters that are always max hit no matter what
-    if ((this.player.style.type === 'magic' && ALWAYS_MAX_HIT_MONSTERS.magic.includes(this.monster.id))
+    if (!this.opts.isBlindBag
+        && ((this.player.style.type === 'magic' && ALWAYS_MAX_HIT_MONSTERS.magic.includes(this.monster.id))
         || (this.isUsingMeleeStyle() && ALWAYS_MAX_HIT_MONSTERS.melee.includes(this.monster.id))
-        || (this.player.style.type === 'ranged' && ALWAYS_MAX_HIT_MONSTERS.ranged.includes(this.monster.id))) {
+        || (this.player.style.type === 'ranged' && ALWAYS_MAX_HIT_MONSTERS.ranged.includes(this.monster.id)))) {
       if (YAMA_VOID_FLARE_IDS.includes(this.monster.id) && this.player.buffs.markOfDarknessSpell && this.player.spell?.name.includes('Demonbane')) {
         const demonbaneFactor = this.wearing('Purging staff') ? 50 : 25;
         return new AttackDistribution([HitDistribution.single(1.0, [new Hitsplat(max + Math.trunc(Math.trunc(max * demonbaneFactor / 100) * this.demonbaneVulnerability() / 100))])]);
@@ -1999,50 +2143,68 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       return new AttackDistribution([HitDistribution.single(1.0, [new Hitsplat(dist.getMax())])]);
     }
 
-    const rangedEcho = this.player.style.type === 'ranged' && leagues.effects.talent_ranged_regen_echo_chance;
-    const meleeEcho = this.isUsingMeleeStyle() && leagues.effects.talent_2h_melee_echos && this.player.equipment.weapon?.isTwoHanded;
-    if (rangedEcho || meleeEcho) {
-      const isWearingBow = meleeEcho || (this.player.equipment.weapon?.category === EquipmentCategory.BOW && !this.wearing('Eclipse atlatl'));
-      const isWearingCrossbow = meleeEcho || this.player.equipment.weapon?.category === EquipmentCategory.CROSSBOW;
-      const isWearingThrown = meleeEcho || (this.player.equipment.weapon?.category === EquipmentCategory.THROWN || this.wearing('Eclipse atlatl'));
+    const uniqueBlindbagWeapons = this.getBlindbagUniqueWeapons();
+    if (includeBlindbag
+      && leagues.effects.talent_free_random_weapon_attack_chance
+      && this.isUsingMeleeStyle()
+      && !this.opts.isBlindBag
+      && uniqueBlindbagWeapons.length > 0
+      && (this.player.equipment.weapon?.weight ?? 0) >= 1) {
+      const chanceBlindbagProc = this.getBlindbagTriggerChance();
+      let blindbagDist = new HitDistribution([new WeightedHit(1 - chanceBlindbagProc, [Hitsplat.INACCURATE])]);
 
-      let triggerChance = (meleeEcho ? 5 : leagues.effects.talent_ranged_regen_echo_chance!) / 100;
-      if (leagues.effects.talent_crossbow_echo_reproc_chance && isWearingCrossbow) {
-        triggerChance += leagues.effects.talent_crossbow_echo_reproc_chance / 100;
+      const partialDists = uniqueBlindbagWeapons.flatMap((weapon) => {
+        const style = this.getBlindbagStyleForWeapon(weapon.category);
+        if (!style) {
+          return [];
+        }
+
+        const player: Player = {
+          ...this.player,
+          style,
+          equipment: {
+            ...this.player.equipment,
+            weapon,
+            shield: weapon.isTwoHanded ? null : this.player.equipment.shield,
+          },
+        };
+
+        const gearBonuses = calculateEquipmentBonusesFromGear(player, this.monster);
+        player.bonuses = gearBonuses.bonuses;
+        player.offensive = gearBonuses.offensive;
+        player.defensive = gearBonuses.defensive;
+
+        const subCalc = this.noInitSubCalc(player, this.monster, {
+          loadoutName: `${this.opts.loadoutName}/blindbag/${weapon.id}`,
+          isBlindBag: true,
+        });
+
+        return subCalc.getDistribution()
+          .singleHitsplat
+          .scaleProbability(chanceBlindbagProc / uniqueBlindbagWeapons.length)
+          .hits;
+      });
+
+      partialDists.forEach((partial) => blindbagDist.addHit(partial));
+      blindbagDist = blindbagDist.cumulative();
+      this.trackDist('Dist leagues blindbag', blindbagDist);
+
+      let recursiveBlindbag = blindbagDist;
+      for (let i = 1; i <= 3; i++) {
+        const recurseChance = chanceBlindbagProc ** i;
+        const thisRecurse = blindbagDist.scaleProbability(recurseChance);
+        thisRecurse.addHit(new WeightedHit(1 - recurseChance, [Hitsplat.INACCURATE]));
+        recursiveBlindbag = recursiveBlindbag.zip(thisRecurse).cumulative();
       }
-      this.track(DetailKey.LEAGUES_ECHO_CHANCE_TRIGGER, triggerChance);
 
-      let echoChance = triggerChance;
-      if (rangedEcho) {
-        const regenChance = (leagues.effects.talent_regen_ammo ?? 0) / 100;
-        echoChance *= regenChance;
-        this.track(DetailKey.LEAGUES_ECHO_CHANCE_REGEN, echoChance);
-      }
+      this.trackDist('Dist leagues blindbag recursive', recursiveBlindbag);
+      dist.addDist(recursiveBlindbag);
+    }
 
-      if (!leagues.effects.talent_bow_always_pass_accuracy || !isWearingBow) {
-        echoChance *= acc;
-        this.track(DetailKey.LEAGUES_ECHO_CHANCE_ACCURACY, echoChance);
-      }
-
-      let echoDist = HitDistribution.linear(echoChance, min, max);
-      if (leagues.effects.talent_thrown_maxhit_echoes && isWearingThrown) {
-        const effectChance = 0.2;
-        echoDist = echoDist.scaleProbability(1 - effectChance);
-        echoDist.addHit(new WeightedHit(effectChance * acc, [new Hitsplat(max)]));
-        echoDist.addHit(new WeightedHit(effectChance * (1 - acc), [Hitsplat.INACCURATE]));
-        echoDist = echoDist.flatten();
-      }
-      this.trackDist(DetailKey.DIST_LEAGUES_ECHO, echoDist);
-      dist.addDist(echoDist);
-
-      if (leagues.effects.talent_ranged_echo_cyclical) {
-        const echoDistCyclical = echoDist.scaleProbability(0.5);
-        echoDistCyclical.addHit(new WeightedHit(0.5, [Hitsplat.INACCURATE]));
-        this.trackDist(DetailKey.DIST_LEAGUES_ECHO_CYCLICAL, echoDistCyclical);
-
-        dist.addDist(echoDistCyclical);
-        dist.addDist(echoDistCyclical);
-        dist.addDist(echoDistCyclical);
+    if (includeEchoes) {
+      const echoDist = this.getEchoAttackDist(acc, min, max);
+      if (echoDist) {
+        dist.addDist(echoDist);
       }
     }
 
@@ -2543,7 +2705,10 @@ export default class PlayerVsNPCCalc extends BaseCalc {
   // a computational shortcut for internal class use only
   private noInitSubCalc(p: Player, m: Monster, opts: Partial<InternalOpts> = {}): PlayerVsNPCCalc {
     const subCalc = new PlayerVsNPCCalc(p, m, <InternalOpts>{ ...this.opts, ...opts, noInit: true });
-    subCalc.allEquippedItems = this.allEquippedItems;
+    subCalc.allEquippedItems = Object.values(subCalc.player.equipment)
+      .filter((v) => v !== null)
+      .flat(1)
+      .map((eq: EquipmentPiece | null) => eq?.name || '');
     subCalc.baseMonster = this.baseMonster;
 
     return subCalc;

@@ -1,0 +1,42 @@
+With something as vast as Demonic Pacts it's going to be impossible for absolutely everything to be clarified so I'm going to skip over the smaller interactions and try to cover some of the bigger ones. There's always going to be niche interactions you guys discover once the league launches, that's just part of the game. Also aware this list might need to be added to over time as more info comes out.
+
+General
+You get 40 demonic pacts total, these are earned by completing specific league tasks in the league.
+You get 3 full talent tree resets throughout the league to do with as you wish. These are gained by defeating your first 3 echo bosses.
+In general, most pacts don't work in PvP, we just didn't have the time unfortunately.
+
+Neutral
+All accuracy bonuses are additive not multiplicative, so a 35% node and a 15% node is +50% bonus accuracy not +55.25%
+Regeneration can go above 100% and will not be wasted
+At 100% regeneration you will not lose runes/ammo, at above 100% you'll start profiting them
+Defence level boosts do not stack with defence potions
+Defenders are not shields but are considered off-hands
+Prayer penetration caps at 100% :read:, this means that additional prayer penetration doesn't increase your damage beyond what you'll normally do
+
+Magic :demonic_unknown_magic:
+Regeneration happens once but takes into account how many runes the spell cast regenerated. Infinite rune sources still trigger regenerations
+Spells which use both a water and and air rune for example, can trigger two different regenerations, one for the number of air runes you used and one for the number of water runes you used
+Combination runes trigger both of the regenerations but regenerate into their separate runes, so regenerating a mistrune will proc both but return you an air and a water rune
+Regeneration only triggers for runes that were actually required by the spell. So no using combination runes to trigger regeneration effects from earth/fire for a water spell (air/water)
+The magic level boost does not stack with things like the imbued heart, or magic potions but the saturated heart will be stronger than it.
+Water damage does scale with your overhealed HP beyond the 20% at 100% HP
+Fire spells are weirdly worded but it does burn considering overhealed HP, so if you have 150 HP it'll consume 6% so 9 hitpoints to deal 18 more damage. A twin-flame staff will consume 9 hitpoints once not twice
+Earth spell defence reduction still respects the defence reduction caps boss have but it has no inherent cap itself
+Earth spells do scale with your defence level beyond 99 if you have potion boosts or have selected demonic pacts which boost your defence level.
+The earth regeneration talent considers your base defence as level + pacts. So if you're at 149/99 defence you can go to 178/99 defence
+Gauntlet staff is 1t with the powered staff pact
+
+Melee :demonic_unknown_melee:
+Defenders are not shields, the Dinhs bulwark does count as a shield though (shocker)
+"All recoil and thorns..." does buff recoil rings and echo boot effects. Just good luck getting hit with that high defence
+"Thorns" damage counts as a melee attack so if a target is immune to melee it will not deal damage but it will work against targets normally immune to recoil damage
+"Thorns" damage hitting a mage or ranged nylo will not deal damage to you despite being melee
+Weapons which are exactly 1kg count for heavy weapon builds but not light weapon builds
+Blindbag is triggered once PER ATTACK, not per hitsplat. So scythe can trigger it once only
+When a blindbag attack occurs it works as if you swung it yourself, so set effects like dharoks will work and the scythe will hit 3 times against large targets.
+Blindbag will not cause you to run up and attack if you have this with a halberd. It will work just fine from 7 tiles away
+Blindbag looks for items with the same object ID. So having 4 dharok axes at different degrade levels or 6 different scythe variants (charged/uncharged/ornamented) will count. Good luck getting 6 megarare scrolls and 4 ornament kits though.
+Two handed weapons which trigger ranged echoes can do so with just that demonic pact, but they will not get the "never miss", "20% chance to max hit" or "+15% chance to trigger the echo" unless you have those ranged nodes unlocked.
+Two handed melee ranged echoes can be cyclical from the node further down in ranged but will not gain any benefit from the two nodes which both say they give a +5% chance to fire an echo as both of those state regenerate
+Ranged echoes triggered by a melee weapon roll off melee defence
+You can melee flying targets with the melee range build

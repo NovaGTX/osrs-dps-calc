@@ -23,6 +23,7 @@ export interface CalcOpts {
   detailedOutput?: boolean,
   disableMonsterScaling?: boolean,
   usingSpecialAttack?: boolean,
+  isBlindBag?: boolean,
   overrides?: {
     accuracy?: number,
     attackRoll?: number,
@@ -43,6 +44,7 @@ const DEFAULT_OPTS: Required<InternalOpts> = {
   detailedOutput: false,
   disableMonsterScaling: false,
   usingSpecialAttack: false,
+  isBlindBag: false,
   noInit: false,
   overrides: {},
 };
