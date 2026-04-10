@@ -2154,14 +2154,14 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       let blindbagDist = new HitDistribution([new WeightedHit(1 - chanceBlindbagProc, [Hitsplat.INACCURATE])]);
 
       const partialDists = uniqueBlindbagWeapons.flatMap((weapon) => {
-        const style = this.getBlindbagStyleForWeapon(weapon.category);
-        if (!style) {
+        const blindbagStyle = this.getBlindbagStyleForWeapon(weapon.category);
+        if (!blindbagStyle) {
           return [];
         }
 
         const player: Player = {
           ...this.player,
-          style,
+          style: blindbagStyle,
           equipment: {
             ...this.player.equipment,
             weapon,
