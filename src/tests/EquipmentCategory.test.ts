@@ -45,7 +45,7 @@ test('new league items are present with the expected combat categories and slots
 
   expect(findEquipment("V's helm").slot).toBe('head');
   expect(findEquipment('Shadowflame quadrant').category).toBe(EquipmentCategory.STAFF);
-  expect(findEquipment("Devil's element").slot).toBe('neck');
+  expect(findEquipment("Devil's element").slot).toBe('shield');
   expect(findEquipment("Nature's recurve").category).toBe(EquipmentCategory.BOW);
   expect(findEquipment('Lithic sceptre', 'Charged').category).toBe(EquipmentCategory.POWERED_STAFF);
   expect(findEquipment('Crystal blessing').slot).toBe('ammo');
