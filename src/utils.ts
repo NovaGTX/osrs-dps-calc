@@ -779,8 +779,10 @@ export const isValidBlindbagWeapon = (equipment: EquipmentPiece): boolean => {
     return false;
   }
 
-  const attackStyles = getCombatStylesForCategory(equipment.category)
-    .filter((style) => style.type !== null && style.stance !== null && style.stance !== 'Manual Cast');
+  const attackStyleTypes = getCombatStylesForCategory(equipment.category)
+    .filter((style) => style.stance !== null && style.stance !== 'Manual Cast')
+    .map((style) => style.type)
+    .filter((type): type is Exclude<typeof type, null> => type !== null);
 
-  return attackStyles.length > 0 && attackStyles.every((style) => ['stab', 'slash', 'crush'].includes(style.type));
+  return attackStyleTypes.length > 0 && attackStyleTypes.every((type) => ['stab', 'slash', 'crush'].includes(type));
 };
