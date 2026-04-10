@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { IconAlertTriangleFilled, IconEdit } from '@tabler/icons-react';
 import Modal from '@/app/components/generic/Modal';
@@ -14,6 +14,8 @@ import ShowIfLeagueEffectEnabled from '@/app/components/player/demonicPactsLeagu
 import { getCdnImage, isValidBlindbagWeapon } from '@/utils';
 import { computed } from 'mobx';
 import UserIssueType from '@/enums/UserIssueType';
+import localforage from 'localforage';
+import { toast } from 'react-toastify';
 
 const BlindbagSelector = observer(() => {
   const store = useStore();
@@ -100,12 +102,50 @@ const DistanceToEnemyInput = observer(() => {
   );
 });
 
+export const parsePlannerUrlNodeIds = (input: string): Set<string> | null => {
+  try {
+    const url = new URL(input.trim());
+    if (url.hostname !== 'tools.runescape.wiki'
+      || !url.pathname.startsWith('/demonic-pacts')
+      || !url.searchParams.has('n')) {
+      return null;
+    }
+
+    const nodes = url.searchParams.get('n')
+      ?.split('-')
+      .map((node) => parseInt(node.replace(/"/g, '').trim()))
+      .filter((node) => Number.isFinite(node))
+      .map((node) => `node${node}`);
+
+    if (!nodes?.length) {
+      return null;
+    }
+
+    return new Set(nodes);
+  } catch {
+    return null;
+  }
+};
+
 const DemonicPactsLeague: React.FC = observer(() => {
   const [showCombatMasteriesUI, setShowCombatMasteriesUI] = useState(false);
   const store = useStore();
   const { cullingSpree } = store.player.leagues.six;
+  const fromUrlInput = useRef<HTMLInputElement>(null);
+  const fromUrlBtn = useRef<HTMLButtonElement>(null);
 
   const unimplementedPacts = computed(() => store.userIssues.filter((issue) => issue.type === UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED)).get();
+
+  const importPlannerNodes = (nodes: Set<string>) => {
+    store.updatePlayer({
+      leagues: {
+        six: {
+          selectedNodeIds: nodes,
+        },
+      },
+    });
+    store.recalculateLeaguesEffects();
+  };
 
   return (
     <>
@@ -213,6 +253,64 @@ const DemonicPactsLeague: React.FC = observer(() => {
           )}
           maxWidth="max-w-[90vh]"
         >
+          <div className="text-sm mb-4 flex items-center justify-end gap-2">
+            <p>Import from Pacts Planner</p>
+            <div>
+              <button
+                type="button"
+                className="transition-all hover:scale-105 hover:text-white border border-body-500 bg-[#3e2816] py-1.5 px-2.5 rounded-md dark:bg-dark-300 dark:border-dark-200 w-fit"
+                onClick={async () => {
+                  const data: string[] | null = await localforage.getItem('demonicpacts-nodes');
+                  if (!data?.length) {
+                    toast.error('No planner tree found in browser storage.');
+                    return;
+                  }
+
+                  importPlannerNodes(new Set(data));
+                  toast.success('Imported current planner tree.');
+                }}
+              >
+                Current tree
+              </button>
+            </div>
+            <p>or</p>
+            <div className="flex gap-1 items-center">
+              <input
+                ref={fromUrlInput}
+                type="text"
+                className="form-control rounded w-full"
+                placeholder="Planner URL"
+                onKeyUp={(event) => {
+                  if (event.key === 'Enter') {
+                    fromUrlBtn.current?.click();
+                  }
+                }}
+              />
+              <button
+                ref={fromUrlBtn}
+                type="button"
+                className="transition-all hover:scale-105 hover:text-white border border-body-500 bg-[#3e2816] py-1.5 px-2.5 rounded-md dark:bg-dark-300 dark:border-dark-200 w-32"
+                onClick={() => {
+                  const input = fromUrlInput.current?.value;
+                  if (!input) {
+                    toast.error('Enter a Demonic Pacts planner URL.');
+                    return;
+                  }
+
+                  const nodes = parsePlannerUrlNodeIds(input);
+                  if (!nodes) {
+                    toast.error('Invalid planner URL. Use a tools.runescape.wiki Demonic Pacts link.');
+                    return;
+                  }
+
+                  importPlannerNodes(nodes);
+                  toast.success('Imported planner URL.');
+                }}
+              >
+                From URL
+              </button>
+            </div>
+          </div>
           <div className="flex flex-col h-[80vh]">
             <div className="flex-grow outline outline-gray-500"><SkillTreeDisplay interactive /></div>
             <div

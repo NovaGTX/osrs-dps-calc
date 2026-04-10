@@ -1,6 +1,11 @@
 import { findEquipment, getTestMonster, getTestPlayer } from '@/tests/utils/TestUtils';
 import { describe, expect, test } from '@jest/globals';
-import { calculateEquipmentBonusesFromGear, getCanonicalItemId } from '@/lib/Equipment';
+import {
+  calculateEquipmentBonusesFromGear,
+  getCanonicalEquipment,
+  getCanonicalItemId,
+  placeAmmoInQuiverSlots,
+} from '@/lib/Equipment';
 
 describe('calculateEquipmentBonusesFromGear', () => {
   test('holy and sanguine scythes remain distinct equipment entries', () => {
@@ -78,6 +83,48 @@ describe('calculateEquipmentBonusesFromGear', () => {
         const bonuses = calculateEquipmentBonusesFromGear(playerWithChargedQuiver, monster);
         expect(bonuses.offensive.ranged).toStrictEqual(88);
         expect(bonuses.bonuses.ranged_str).toStrictEqual(83);
+      });
+
+      test('normalizes compatible projectile ammo into the primary ammo slot', () => {
+        const normalized = getCanonicalEquipment({
+          head: null,
+          cape: findEquipment("Dizana's quiver", 'Charged'),
+          neck: null,
+          ammo: findEquipment('Crystal blessing'),
+          ammo2: findEquipment('Dragon arrow', 'Unpoisoned'),
+          weapon: findEquipment('Twisted bow'),
+          body: null,
+          shield: null,
+          legs: null,
+          hands: null,
+          feet: null,
+          ring: null,
+        });
+
+        expect(normalized.ammo?.name).toBe('Dragon arrow');
+        expect(normalized.ammo2?.name).toBe('Crystal blessing');
+      });
+
+      test('places arrows and blessing into separate slots through quiver placement rules', () => {
+        const equipment = {
+          head: null,
+          cape: findEquipment("Dizana's quiver", 'Charged'),
+          neck: null,
+          ammo: findEquipment('Crystal blessing'),
+          ammo2: null,
+          weapon: findEquipment('Twisted bow'),
+          body: null,
+          shield: null,
+          legs: null,
+          hands: null,
+          feet: null,
+          ring: null,
+        };
+
+        const placed = placeAmmoInQuiverSlots(equipment, findEquipment('Dragon arrow', 'Unpoisoned'));
+
+        expect(placed.ammo?.name).toBe('Dragon arrow');
+        expect(placed.ammo2?.name).toBe('Crystal blessing');
       });
     });
     describe('with weapon not using ammo slot', () => {

@@ -63,7 +63,12 @@ import {
 import { EquipmentCategory } from '@/enums/EquipmentCategory';
 import { DetailKey } from '@/lib/CalcDetails';
 import { Factor, iLerp, MinMax } from '@/lib/Math';
-import { calculateAttackSpeed, calculateEquipmentBonusesFromGear, WEAPON_SPEC_COSTS } from '@/lib/Equipment';
+import {
+  calculateAttackSpeed,
+  calculateEquipmentBonusesFromGear,
+  isCrystalBlessingEquipped,
+  WEAPON_SPEC_COSTS,
+} from '@/lib/Equipment';
 import BaseCalc, { CalcOpts, InternalOpts } from '@/lib/BaseCalc';
 import { scaleMonster, scaleMonsterHpOnly } from '@/lib/MonsterScaling';
 import { CombatStyleType, getRangedDamageType } from '@/types/PlayerCombatStyle';
@@ -257,7 +262,7 @@ export default class PlayerVsNPCCalc extends BaseCalc {
   }
 
   private hasCrystalBlessingTransferBonus(): boolean {
-    if (this.player.equipment.ammo?.name !== 'Crystal blessing') {
+    if (!isCrystalBlessingEquipped(this.player.equipment)) {
       return false;
     }
 

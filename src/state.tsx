@@ -38,7 +38,11 @@ import {
 } from '@/utils';
 import { ComputeBasicRequest, ComputeReverseRequest, WorkerRequestType } from '@/worker/CalcWorkerTypes';
 import { getMonsters, INITIAL_MONSTER_INPUTS } from '@/lib/Monsters';
-import { availableEquipment, calculateEquipmentBonusesFromGear } from '@/lib/Equipment';
+import {
+  availableEquipment,
+  calculateEquipmentBonusesFromGear,
+  placeAmmoInQuiverSlots,
+} from '@/lib/Equipment';
 import { CalcWorker } from '@/worker/CalcWorker';
 import { spellByName } from '@/types/Spell';
 import {
@@ -63,6 +67,7 @@ const EMPTY_CALC_LOADOUT = {} as CalculatedLoadout;
 const generateInitialEquipment = () => {
   const initialEquipment: PlayerEquipment = {
     ammo: null,
+    ammo2: null,
     body: null,
     cape: null,
     feet: null,
@@ -711,10 +716,11 @@ class GlobalState implements State {
   updatePlayer(player: PartialDeep<Player>, loadoutIx?: number) {
     loadoutIx = loadoutIx !== undefined ? loadoutIx : this.selectedLoadout;
 
-    const currentShield = this.loadouts[loadoutIx].equipment.shield;
+    const currentEquipment = this.loadouts[loadoutIx].equipment;
+    const currentShield = currentEquipment.shield;
     const newShield = player.equipment?.shield;
 
-    const currentWeapon = this.loadouts[loadoutIx].equipment.weapon;
+    const currentWeapon = currentEquipment.weapon;
 
     // Special handling for if a shield is equipped, and we're using a two-handed weapon
     if (player.equipment?.shield && newShield !== undefined && currentWeapon?.isTwoHanded) {
@@ -745,6 +751,22 @@ class GlobalState implements State {
           }
         }
       }
+    }
+
+    if (eq && Object.hasOwn(eq, 'ammo') && eq.ammo !== undefined && !Object.hasOwn(eq, 'ammo2')) {
+      const ammoPlacementContext = {
+        ...currentEquipment,
+        ...player.equipment,
+        ammo: currentEquipment.ammo,
+        ammo2: currentEquipment.ammo2,
+      };
+      player = {
+        ...player,
+        equipment: {
+          ...player.equipment,
+          ...placeAmmoInQuiverSlots(ammoPlacementContext, eq.ammo),
+        },
+      };
     }
 
     this.loadouts[loadoutIx] = merge(this.loadouts[loadoutIx], player);

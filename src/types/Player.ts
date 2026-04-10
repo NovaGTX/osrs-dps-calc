@@ -42,6 +42,7 @@ export interface PlayerEquipment {
   cape: EquipmentPiece | null;
   neck: EquipmentPiece | null;
   ammo: EquipmentPiece | null;
+  ammo2: EquipmentPiece | null;
   weapon: EquipmentPiece | null;
   body: EquipmentPiece | null;
   shield: EquipmentPiece | null;

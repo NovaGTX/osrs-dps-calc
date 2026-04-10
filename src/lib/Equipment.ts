@@ -224,11 +224,84 @@ export const getCanonicalItem = (equipmentPiece: EquipmentPiece): EquipmentPiece
   };
 };
 
+const cloneEquipmentPiece = (piece: EquipmentPiece | null): EquipmentPiece | null => {
+  if (!piece) {
+    return null;
+  }
+
+  return {
+    ...piece,
+    itemVars: piece.itemVars ? { ...piece.itemVars } : undefined,
+  };
+};
+
+export const hasActiveDizanasQuiver = (cape?: EquipmentPiece | null): boolean => {
+  if (!cape) {
+    return false;
+  }
+
+  if (cape.version === 'Broken') {
+    return false;
+  }
+
+  const canonicalCape = getCanonicalItem(cape);
+  return canonicalCape.name === "Dizana's max cape"
+    || canonicalCape.name === "Blessed dizana's quiver"
+    || (canonicalCape.name === "Dizana's quiver" && canonicalCape.version === 'Charged');
+};
+
+export const isCrystalBlessingEquipped = (playerEquipment: PlayerEquipment): boolean => [
+  playerEquipment.ammo,
+  playerEquipment.ammo2,
+].some((piece) => piece?.name === 'Crystal blessing');
+
+export const placeAmmoInQuiverSlots = (
+  playerEquipment: PlayerEquipment,
+  nextAmmo: EquipmentPiece | null,
+): Pick<PlayerEquipment, 'ammo' | 'ammo2'> => {
+  if (!hasActiveDizanasQuiver(playerEquipment.cape) || nextAmmo === null) {
+    return {
+      ammo: nextAmmo,
+      ammo2: playerEquipment.ammo2 ?? null,
+    };
+  }
+
+  const weaponId = getCanonicalItemId(playerEquipment.weapon?.id ?? -1);
+  const primaryAmmo = playerEquipment.ammo ? getCanonicalItem(playerEquipment.ammo) : null;
+  const candidateAmmo = getCanonicalItem(nextAmmo);
+  const primaryApplicability = ammoApplicability(weaponId, primaryAmmo?.id);
+  const candidateApplicability = ammoApplicability(weaponId, candidateAmmo.id);
+
+  if (candidateApplicability === AmmoApplicability.INCLUDED) {
+    return {
+      ammo: nextAmmo,
+      ammo2: primaryApplicability === AmmoApplicability.INCLUDED
+        ? cloneEquipmentPiece(playerEquipment.ammo2)
+        : cloneEquipmentPiece(playerEquipment.ammo),
+    };
+  }
+
+  if (primaryApplicability === AmmoApplicability.INCLUDED) {
+    return {
+      ammo: playerEquipment.ammo,
+      ammo2: nextAmmo,
+    };
+  }
+
+  return {
+    ammo: nextAmmo,
+    ammo2: playerEquipment.ammo2 ?? null,
+  };
+};
+
 export const getCanonicalEquipment = (inputEq: PlayerEquipment) => {
   // canonicalize equipment ids
-  let canonicalized = inputEq;
-  for (const k of keys(inputEq)) {
-    const v = inputEq[k];
+  let canonicalized: PlayerEquipment = {
+    ammo2: null,
+    ...inputEq,
+  };
+  for (const k of keys(canonicalized)) {
+    const v = canonicalized[k];
     if (!v) continue;
 
     const canonical = getCanonicalItem(v);
@@ -239,6 +312,26 @@ export const getCanonicalEquipment = (inputEq: PlayerEquipment) => {
       };
     }
   }
+
+  if (!hasActiveDizanasQuiver(canonicalized.cape)) {
+    return {
+      ...canonicalized,
+      ammo2: null,
+    };
+  }
+
+  if (ammoApplicability(canonicalized.weapon?.id, canonicalized.ammo?.id) === AmmoApplicability.INCLUDED) {
+    return canonicalized;
+  }
+
+  if (ammoApplicability(canonicalized.weapon?.id, canonicalized.ammo2?.id) === AmmoApplicability.INCLUDED) {
+    return {
+      ...canonicalized,
+      ammo: canonicalized.ammo2,
+      ammo2: canonicalized.ammo,
+    };
+  }
+
   return canonicalized;
 };
 
@@ -345,8 +438,10 @@ export const calculateEquipmentBonusesFromGear = (player: Player, monster: Monst
       return;
     }
 
-    // skip over ammo slot's ranged bonuses if it is not used by the bow
-    const applyRangedStats = piece.slot !== 'ammo' || ammoApplicability(playerEquipment.weapon?.id, piece.id) === AmmoApplicability.INCLUDED;
+    // Only the primary ammo slot can contribute projectile ranged stats after quiver normalization.
+    const isAmmoSlot = slot === 'ammo' || slot === 'ammo2';
+    const applyRangedStats = !isAmmoSlot
+      || (slot === 'ammo' && ammoApplicability(playerEquipment.weapon?.id, piece.id) === AmmoApplicability.INCLUDED);
 
     keys(piece.bonuses).forEach((stat) => {
       if (stat === 'ranged_str' && !applyRangedStats) {
@@ -374,7 +469,7 @@ export const calculateEquipmentBonusesFromGear = (player: Player, monster: Monst
     }
   }
 
-  if (playerEquipment.ammo?.name === 'Crystal blessing') {
+  if (isCrystalBlessingEquipped(playerEquipment)) {
     const crystalPieces = sum(
       [playerEquipment.head?.name, playerEquipment.body?.name, playerEquipment.legs?.name],
       (name) => (name?.startsWith('Crystal ') ? 1 : 0),
@@ -425,11 +520,8 @@ export const calculateEquipmentBonusesFromGear = (player: Player, monster: Monst
     totals.bonuses.magic_str += 50;
   }
 
-  const cape = playerEquipment.cape;
-  const dizanasQuiverCharged = cape?.name === "Dizana's max cape"
-    || cape?.name === "Blessed dizana's quiver"
-    || (cape?.name === "Dizana's quiver" && cape?.version === 'Charged');
-  if (dizanasQuiverCharged && ammoApplicability(player.equipment.weapon?.id, player.equipment.ammo?.id) === AmmoApplicability.INCLUDED) {
+  if (hasActiveDizanasQuiver(playerEquipment.cape)
+    && ammoApplicability(playerEquipment.weapon?.id, playerEquipment.ammo?.id) === AmmoApplicability.INCLUDED) {
     totals.offensive.ranged += 10;
     totals.bonuses.ranged_str += 1;
   }

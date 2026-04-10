@@ -115,6 +115,8 @@ const equipmentAliases = {
   4722: [4902, 4898, 4901, 4900, 4899], // Dharok's platelegs#Undamaged
   21015: [28682], // Dinh's bulwark
   28902: [28906], // Dizana's max cape#Normal
+  28947: [28949], // Dizana's quiver#Uncharged
+  28951: [28953], // Dizana's quiver#Charged
   7158: [28051], // Dragon 2h sword
   6739: [25378, 30352], // Dragon axe
   1377: [28037], // Dragon battleaxe

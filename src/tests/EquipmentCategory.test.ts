@@ -55,3 +55,7 @@ test('new league items are present with the expected combat categories and slots
 test('generateEmptyPlayer includes lithic sceptre stacks with a zero default', () => {
   expect((generateEmptyPlayer().buffs as Record<string, unknown>).lithicShatterStacks).toBe(0);
 });
+
+test('generateEmptyPlayer includes a second ammo slot for quiver setups', () => {
+  expect((generateEmptyPlayer().equipment as Record<string, unknown>).ammo2).toBe(null);
+});
