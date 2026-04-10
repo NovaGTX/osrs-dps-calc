@@ -114,6 +114,20 @@ const UNIMPLEMENTED_SPECS: string[] = [
   'Zamorakian spear',
 ];
 
+const getPrayerMitigationKey = (
+  styleType: CombatStyleType,
+): keyof Player['leagues']['six']['enemyPrayers'] | null => {
+  if (styleType === 'magic' || styleType === 'ranged') {
+    return styleType;
+  }
+
+  if (styleType === 'stab' || styleType === 'slash' || styleType === 'crush') {
+    return 'melee';
+  }
+
+  return null;
+};
+
 /**
  * Class for computing various player-vs-NPC metrics.
  */
@@ -145,18 +159,6 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       : 0;
 
     return this.player.skills.magic + this.player.boosts.magic + bonus;
-  }
-
-  private getPrayerMitigationKey(styleType: CombatStyleType): keyof Player['leagues']['six']['enemyPrayers'] | null {
-    if (styleType === 'magic' || styleType === 'ranged') {
-      return styleType;
-    }
-
-    if (styleType === 'stab' || styleType === 'slash' || styleType === 'crush') {
-      return 'melee';
-    }
-
-    return null;
   }
 
   private getBlindbagStyleForWeapon(weaponCategory: EquipmentCategory) {
@@ -2175,7 +2177,7 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       );
     }
 
-    const prayerMitigationKey = this.getPrayerMitigationKey(styleType);
+    const prayerMitigationKey = getPrayerMitigationKey(styleType);
     if (prayerMitigationKey && this.player.leagues.six.enemyPrayers[prayerMitigationKey]) {
       const penetration = Math.min(100, this.player.leagues.six.effects.talent_prayer_pen_all ?? 0);
       const remainingMitigation = Math.max(0, 40 - penetration);
