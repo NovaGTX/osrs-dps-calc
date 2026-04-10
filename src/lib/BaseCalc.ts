@@ -784,50 +784,17 @@ export default class BaseCalc {
     }
 
     const leaguesEffects = this.player.leagues.six.effects;
-    if (leaguesEffects.talent_free_random_weapon_attack_chance) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Blindbag (coming soon)');
-    }
-    if (leaguesEffects.talent_light_weapon_doublehit) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Light Weapon Double Hit (coming soon)');
-    }
-    if (leaguesEffects.talent_percentage_melee_maxhit_distance || leaguesEffects.talent_distance_melee_minhit) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Melee Distance Bonuses (coming soon)');
-    }
     if (leaguesEffects.talent_bow_max_hit_stacking_increase || leaguesEffects.talent_bow_min_hit_stacking_increase) {
       this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Repeat Bow Hit Damage (coming soon)');
     }
-    if (leaguesEffects.talent_buffed_ranged_prayers) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Stronger Ranged Prayers (coming soon)');
-    }
-    if (leaguesEffects.talent_fire_spell_burn_bounce) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Fire Spell Burn (coming soon)');
-    }
-    if (leaguesEffects.talent_fire_spell_burn_bounce) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Water Spell Health Bonus (coming soon)');
-    }
-    if (leaguesEffects.talent_fire_spell_burn_bounce) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Air Spell Prayer Max Hits (coming soon)');
-    }
-    if (leaguesEffects.talent_regen_magic_level_boost) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Regenerate Magic Level Boost (coming soon)');
-    }
-    if (leaguesEffects.talent_prayer_pen_all) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Prayer Penetration (coming soon)');
-    }
-    if (leaguesEffects.talent_all_style_accuracy) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Max Accuracy Roll Chance (coming soon)');
-    }
-    if (leaguesEffects.talent_all_style_accuracy) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Prayer Bonus Melee Strength (coming soon)');
-    }
-    if (leaguesEffects.talent_prayer_pen_all) {
+    if (leaguesEffects.talent_max_hit_style_swap) {
       this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Style Swap Damage Bonus');
     }
-    if (leaguesEffects.talent_thorns_damage || leaguesEffects.talent_shield_reflect) {
+    if (leaguesEffects.talent_thorns_damage
+      || leaguesEffects.talent_thorns_double_hit
+      || leaguesEffects.talent_shield_reflect
+      || leaguesEffects.talent_defence_recoil_scaling) {
       this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Thorns');
-    }
-    if (leaguesEffects.talent_overheal_consumption_boost || leaguesEffects.talent_fire_hp_consume_for_damage) {
-      this.addIssue(UserIssueType.LEAGUES_SIX_TALENT_UNSUPPORTED, 'Overheal Consumption Effects');
     }
   }
 }

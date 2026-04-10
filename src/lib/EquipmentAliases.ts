@@ -110,7 +110,6 @@ const equipmentAliases = {
   4511: [24160], // Decorative helm (gold)#Normal
   4512: [24161], // Decorative shield (gold)#Normal
   4508: [24157], // Decorative sword (gold)#Normal
-  4718: [4890, 4886, 4889, 4888, 4887], // Dharok's greataxe#Undamaged
   4716: [4884, 4880, 4883, 4882, 4881], // Dharok's helm#Undamaged
   4720: [4896, 4892, 4895, 4894, 4893], // Dharok's platebody#Undamaged
   4722: [4902, 4898, 4901, 4900, 4899], // Dharok's platelegs#Undamaged
@@ -261,8 +260,6 @@ const equipmentAliases = {
   22481: [25733], // Sanguinesti staff#Uncharged
   11806: [20372], // Saradomin godsword
   12637: [24169], // Saradomin halo#Normal
-  22325: [25736, 25739], // Scythe of vitur#Charged
-  22486: [25738, 25741], // Scythe of vitur#Uncharged
   11770: [26767, 25258], // Seers ring (i)#Nightmare Zone
   24198: [24200], // Seren halo#Normal
   28266: [28476], // Shadow ancient sceptre#Normal

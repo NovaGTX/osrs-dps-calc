@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { PlayerSkills } from '@/types/Player';
+import { EquipmentPiece, PlayerSkills } from '@/types/Player';
 import { ImportableData } from '@/types/State';
 import { StaticImageData } from 'next/image';
 import Ancient from '@/public/img/potions/Ancient brew.png';
@@ -772,4 +772,15 @@ export const getCombatStylesForCategory = (style: EquipmentCategory): PlayerComb
     { name: 'Spell', type: 'magic', stance: 'Manual Cast' },
   );
   return ret;
+};
+
+export const isValidBlindbagWeapon = (equipment: EquipmentPiece): boolean => {
+  if (equipment.slot !== 'weapon' || equipment.weight < 1) {
+    return false;
+  }
+
+  const attackStyles = getCombatStylesForCategory(equipment.category)
+    .filter((style) => style.type !== null && style.stance !== null && style.stance !== 'Manual Cast');
+
+  return attackStyles.length > 0 && attackStyles.every((style) => ['stab', 'slash', 'crush'].includes(style.type));
 };

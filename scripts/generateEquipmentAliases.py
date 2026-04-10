@@ -91,12 +91,14 @@ one_off_renames = {
     "Frozen abyssal whip": "Abyssal whip",
     "Holy ghrazi rapier": "Ghrazi rapier",
     "Holy sanguinesti staff": "Sanguinesti staff",
-    "Holy scythe of vitur": "Scythe of vitur",
-    "Sanguine scythe of vitur": "Scythe of vitur",
     "Dragon hunter crossbow (b)": "Dragon hunter crossbow",
     "Obsidian cape (r)": "Obsidian cape",
     "Elidinis' ward (or)": "Elidinis' ward (f)",
     "Amulet of rancour (s)": "Amulet of rancour"
+}
+
+degraded_alias_exclusions = {
+    "Dharok's greataxe",
 }
 
 def main():
@@ -193,7 +195,8 @@ def main():
                 handle_base_variant(all_items, item, name, item['version'])
         # Degraded variants
         elif re.match(r"^(Broken|0|25|50|75|100)$", item['version']):
-            handle_base_variant(all_items, item, item['name'], ['Undamaged'])
+            if item['name'] not in degraded_alias_exclusions:
+                handle_base_variant(all_items, item, item['name'], ['Undamaged'])
         # Moons armours
         elif re.match(r"^(Used|New)", item['version']) and "Crystal" not in item['name']:
             handle_base_variant(all_items, item, item['name'], ['New'])

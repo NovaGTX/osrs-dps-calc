@@ -10,8 +10,7 @@ import CullingSpree from '@/public/img/combat_masteries/culling_spree.png';
 import Toggle from '@/app/components/generic/Toggle';
 import EquipmentSelect from '@/app/components/player/equipment/EquipmentSelect';
 import ShowIfLeagueEffectEnabled from '@/app/components/player/demonicPactsLeague/ShowIfLeagueEffectEnabled';
-import { getCdnImage } from '@/utils';
-import { MELEE_WEAPONS } from '@/enums/EquipmentCategory';
+import { getCdnImage, isValidBlindbagWeapon } from '@/utils';
 import { computed } from 'mobx';
 import UserIssueType from '@/enums/UserIssueType';
 
@@ -50,9 +49,7 @@ const BlindbagSelector = observer(() => {
           )}
       </div>
       <EquipmentSelect
-        customAvailableEquipmentFilter={(equipment) => equipment.slot === 'weapon'
-                    && equipment.weight > 1
-                    && MELEE_WEAPONS.includes(equipment.category)}
+        customAvailableEquipmentFilter={isValidBlindbagWeapon}
         onSelectedItemChange={(item) => {
           const current = blindbagWeapons;
           if (item

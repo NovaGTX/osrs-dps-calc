@@ -424,6 +424,10 @@ export const calculateEquipmentBonusesFromGear = (player: Player, monster: Monst
     totals.bonuses.ranged_str += Math.trunc(totals.bonuses.str * 0.80);
   }
 
+  if (leagues.talent_melee_strength_prayer_bonus) {
+    totals.bonuses.str += Math.trunc(totals.bonuses.prayer / 2);
+  }
+
   if (leagues.talent_offhand_stat_boost && playerEquipment.shield) {
     totals.bonuses.str += 5;
     totals.bonuses.ranged_str += 5;

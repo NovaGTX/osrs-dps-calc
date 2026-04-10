@@ -1,8 +1,26 @@
 import { findEquipment, getTestMonster, getTestPlayer } from '@/tests/utils/TestUtils';
 import { describe, expect, test } from '@jest/globals';
-import { calculateEquipmentBonusesFromGear } from '@/lib/Equipment';
+import { calculateEquipmentBonusesFromGear, getCanonicalItemId } from '@/lib/Equipment';
 
 describe('calculateEquipmentBonusesFromGear', () => {
+  test('holy and sanguine scythes remain distinct equipment entries', () => {
+    expect(getCanonicalItemId(findEquipment('Scythe of vitur', 'Charged').id)).toBe(findEquipment('Scythe of vitur', 'Charged').id);
+    expect(getCanonicalItemId(findEquipment('Scythe of vitur', 'Uncharged').id)).toBe(findEquipment('Scythe of vitur', 'Uncharged').id);
+    expect(getCanonicalItemId(findEquipment('Holy scythe of vitur', 'Charged').id)).toBe(findEquipment('Holy scythe of vitur', 'Charged').id);
+    expect(getCanonicalItemId(findEquipment('Holy scythe of vitur', 'Uncharged').id)).toBe(findEquipment('Holy scythe of vitur', 'Uncharged').id);
+    expect(getCanonicalItemId(findEquipment('Sanguine scythe of vitur', 'Charged').id)).toBe(findEquipment('Sanguine scythe of vitur', 'Charged').id);
+    expect(getCanonicalItemId(findEquipment('Sanguine scythe of vitur', 'Uncharged').id)).toBe(findEquipment('Sanguine scythe of vitur', 'Uncharged').id);
+  });
+
+  test("dharok's greataxe variants remain distinct equipment entries", () => {
+    expect(getCanonicalItemId(findEquipment("Dharok's greataxe", 'Undamaged').id)).toBe(findEquipment("Dharok's greataxe", 'Undamaged').id);
+    expect(getCanonicalItemId(findEquipment("Dharok's greataxe", '100').id)).toBe(findEquipment("Dharok's greataxe", '100').id);
+    expect(getCanonicalItemId(findEquipment("Dharok's greataxe", '75').id)).toBe(findEquipment("Dharok's greataxe", '75').id);
+    expect(getCanonicalItemId(findEquipment("Dharok's greataxe", '50').id)).toBe(findEquipment("Dharok's greataxe", '50').id);
+    expect(getCanonicalItemId(findEquipment("Dharok's greataxe", '25').id)).toBe(findEquipment("Dharok's greataxe", '25').id);
+    expect(getCanonicalItemId(findEquipment("Dharok's greataxe", '0').id)).toBe(findEquipment("Dharok's greataxe", '0').id);
+  });
+
   describe("with Dizana's quiver", () => {
     describe('with weapon using ammo slot', () => {
       test('applies bonus when charged', () => {
