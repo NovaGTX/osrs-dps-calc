@@ -371,30 +371,26 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     return triggerChance * averageExpectedDamage / (1 - triggerChance);
   }
 
-  private buildDependentEchoChain(
-    currentEchoDist: HitDistribution,
-    followUpEchoDist: HitDistribution,
-    remainingFollowUps: number,
-  ): HitDistribution {
-    if (remainingFollowUps === 0) {
-      return currentEchoDist;
+  private getEchoTriggerChance(): number | null {
+    const leagues = this.player.leagues.six;
+    const rangedEcho = this.player.style.type === 'ranged' && leagues.effects.talent_ranged_regen_echo_chance;
+    const meleeEcho = this.isUsingMeleeStyle() && leagues.effects.talent_2h_melee_echos && this.player.equipment.weapon?.isTwoHanded;
+    if (!(rangedEcho || meleeEcho)) {
+      return null;
     }
 
-    const chainedFollowUps = this.buildDependentEchoChain(followUpEchoDist, followUpEchoDist, remainingFollowUps - 1);
-    const chainedEchoes = new HitDistribution([]);
-
-    for (const hit of currentEchoDist.hits) {
-      if (!hit.anyAccurate()) {
-        chainedEchoes.addHit(hit);
-        continue;
-      }
-
-      for (const tail of chainedFollowUps.hits) {
-        chainedEchoes.addHit(hit.zip(tail));
-      }
+    const isWearingCrossbow = meleeEcho || this.player.equipment.weapon?.category === EquipmentCategory.CROSSBOW;
+    let triggerChance = (meleeEcho ? 5 : leagues.effects.talent_ranged_regen_echo_chance!) / 100;
+    if (leagues.effects.talent_crossbow_echo_reproc_chance && isWearingCrossbow) {
+      triggerChance += leagues.effects.talent_crossbow_echo_reproc_chance / 100;
     }
 
-    return chainedEchoes.cumulative();
+    let echoChance = triggerChance;
+    if (rangedEcho) {
+      echoChance *= (leagues.effects.talent_regen_ammo ?? 0) / 100;
+    }
+
+    return echoChance;
   }
 
   private getEchoAttackDist(acc: number, min: number, max: number): HitDistribution | null {
@@ -1844,15 +1840,18 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       const acc = this.getHitChance();
       const [min, max] = this.getMinAndMax();
       const echoDist = this.getEchoAttackDist(acc, min, max);
-      if (echoDist) {
-        const followUpEchoDist = echoDist.scaleProbability(0.5);
-        followUpEchoDist.addHit(new WeightedHit(0.5, [Hitsplat.INACCURATE]));
-
+      const echoChance = this.getEchoTriggerChance();
+      if (echoDist && echoChance !== null) {
         const echoNpcDist = this.applyNpcTransforms(new AttackDistribution([echoDist])).singleHitsplat;
-        const followUpEchoNpcDist = this.applyNpcTransforms(new AttackDistribution([followUpEchoDist])).singleHitsplat;
-        const totalEchoDist = this.buildDependentEchoChain(echoNpcDist, followUpEchoNpcDist, 3);
-        this.trackDist(DetailKey.DIST_LEAGUES_ECHO_CYCLICAL, totalEchoDist);
-        npcDist.addDist(totalEchoDist);
+        const cyclicalChance = echoChance * 0.5;
+        const echoDistCyclical = echoNpcDist.scaleProbability(cyclicalChance);
+        echoDistCyclical.addHit(new WeightedHit(1 - cyclicalChance, [Hitsplat.INACCURATE]));
+        this.trackDist(DetailKey.DIST_LEAGUES_ECHO_CYCLICAL, echoDistCyclical);
+
+        npcDist.addDist(echoNpcDist);
+        npcDist.addDist(echoDistCyclical);
+        npcDist.addDist(echoDistCyclical);
+        npcDist.addDist(echoDistCyclical);
       }
     }
 
