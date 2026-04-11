@@ -26,11 +26,13 @@ const calcKeyToString = (value: number, calcKey: keyof PlayerVsNPCCalculatedLoad
     case 'specAccuracy':
       return `${(value * 100).toFixed(ACCURACY_PRECISION)}%`;
     case 'dps':
+    case 'healPerSecond':
     case 'specMomentDps':
       return value.toFixed(DPS_PRECISION);
     case 'specFullDps':
       return value.toPrecision(DPS_PRECISION);
     case 'expectedHit':
+    case 'expectedHeal':
     case 'specExpected':
       return value.toFixed(EXPECTED_HIT_PRECISION);
     case 'ttk':
@@ -111,6 +113,10 @@ const PlayerVsNPCResultsTable: React.FC = observer(() => {
 
   const loadouts = toJS(calc.loadouts);
   const hasResults = useMemo(() => some(loadouts, (l) => some(Object.entries(l), ([, v]) => isDefined(v))), [loadouts]);
+  const hasBloodFuryHealingResults = useMemo(
+    () => some(loadouts, (l) => isDefined(l.expectedHeal) || isDefined(l.healPerSecond)),
+    [loadouts],
+  );
 
   return (
     <table>
@@ -140,9 +146,19 @@ const PlayerVsNPCResultsTable: React.FC = observer(() => {
             Expected hit
           </ResultRow>
         )}
+        {hasBloodFuryHealingResults && resultsExpanded && (
+          <ResultRow calcKey="expectedHeal" title="Estimated average healing per attack from the amulet of blood fury. Only shown for melee setups using the amulet." hasResults={hasResults}>
+            Expected heal
+          </ResultRow>
+        )}
         <ResultRow calcKey="dps" title="The average damage you will deal per-second" hasResults={hasResults}>
           DPS
         </ResultRow>
+        {hasBloodFuryHealingResults && (
+          <ResultRow calcKey="healPerSecond" title="Estimated average healing per second from the amulet of blood fury. Only shown for melee setups using the amulet." hasResults={hasResults}>
+            Heal/sec
+          </ResultRow>
+        )}
         <ResultRow calcKey="ttk" title="The average time (in seconds) it will take to defeat the monster" hasResults={hasResults}>
           Avg. TTK
         </ResultRow>

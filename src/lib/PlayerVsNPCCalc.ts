@@ -313,7 +313,11 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     return Math.min(1, (blindbagBaseChance + uniqueChanceBonus) / 100);
   }
 
-  private getBlindbagExpectedDamage(): number {
+  private isBloodFuryHealingApplicable(): boolean {
+    return this.isUsingMeleeStyle() && this.wearing('Amulet of blood fury');
+  }
+
+  private getBlindbagExpectedDamage(includeEchoes: boolean = true): number {
     const currentWeapon = this.player.equipment.weapon;
     const uniqueBlindbagWeapons = this.getBlindbagUniqueWeapons();
     if (!this.isUsingMeleeStyle()
@@ -361,14 +365,30 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       player.offensive = gearBonuses.offensive;
       player.defensive = gearBonuses.defensive;
 
-      return this.noInitSubCalc(player, this.monster, {
+      const subCalc = this.noInitSubCalc(player, this.monster, {
         loadoutName: `${this.opts.loadoutName}/blindbag/${weapon.id}`,
         isBlindBag: true,
-      }).getExpectedDamage();
+      });
+
+      if (!includeEchoes) {
+        return subCalc.applyNpcTransforms(subCalc.getAttackerDist(true, false)).getExpectedDamage();
+      }
+
+      return subCalc.getDistribution().getExpectedDamage();
     });
 
     const averageExpectedDamage = sum(perWeaponExpectedDamage) / perWeaponExpectedDamage.length;
     return triggerChance * averageExpectedDamage / (1 - triggerChance);
+  }
+
+  private getExpectedBloodFuryEligibleDamage(): number | undefined {
+    if (!this.isBloodFuryHealingApplicable()) {
+      return undefined;
+    }
+
+    const attackerDamage = this.applyNpcTransforms(this.getAttackerDist(false, false)).getExpectedDamage();
+    const blindbagDamage = this.getBlindbagExpectedDamage(false);
+    return attackerDamage + blindbagDamage;
   }
 
   private getEchoTriggerChance(): number | null {
@@ -1811,6 +1831,24 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     }
 
     return this.getDistribution().getExpectedDamage() + this.getDoTExpected();
+  }
+
+  public getExpectedHealPerHit(): number | undefined {
+    const eligibleDamage = this.getExpectedBloodFuryEligibleDamage();
+    if (eligibleDamage === undefined) {
+      return undefined;
+    }
+
+    return eligibleDamage * 0.06;
+  }
+
+  public getHealPerSecond(): number | undefined {
+    const expectedHealPerHit = this.getExpectedHealPerHit();
+    if (expectedHealPerHit === undefined) {
+      return undefined;
+    }
+
+    return expectedHealPerHit / this.getExpectedAttackSpeed() / SECONDS_PER_TICK;
   }
 
   public getDistribution(): AttackDistribution {
