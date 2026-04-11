@@ -18,6 +18,7 @@ import {
   canUseSunfireRunes,
   getSpellMaxHit,
   isBindSpell,
+  spellByName,
   Spellement,
 } from '@/types/Spell';
 import { PrayerData, PrayerMap } from '@/enums/Prayer';
@@ -457,6 +458,26 @@ export default class PlayerVsNPCCalc extends BaseCalc {
 
     this.trackDist(DetailKey.DIST_LEAGUES_ECHO, echoDist);
     return echoDist;
+  }
+
+  private getFlamesOfCerberusDist(): HitDistribution | null {
+    const flamesOfCerberus = spellByName('Flames of Cerberus');
+    if (!flamesOfCerberus) {
+      return null;
+    }
+
+    return this.noInitSubCalc(
+      {
+        ...this.player,
+        spell: flamesOfCerberus,
+        style: { name: 'Spell', type: 'magic', stance: 'Autocast' },
+      },
+      this.monster,
+      {
+        loadoutName: `${this.opts.loadoutName}/Flames of Cerberus`,
+        overrides: { accuracy: 1.0 },
+      },
+    ).getDistribution().dists[0];
   }
 
   /**
@@ -2270,25 +2291,26 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       );
     }
 
-    if (this.wearing('Fang of the hound')) {
-      const flamesMax = this.getCustomElementalMagicMaxHit(10, 'fire');
-      dist = dist.transform(
-        (h) => {
-          if (!this.opts.usingSpecialAttack && !h.accurate) {
-            return HitDistribution.single(1.0, [h]);
-          }
+    if (this.wearing('Fang of the hound') && this.isUsingMeleeStyle()) {
+      const flamesOfCerberusDist = this.getFlamesOfCerberusDist();
+      if (flamesOfCerberusDist) {
+        dist = dist.transform(
+          (h) => {
+            if (!this.opts.usingSpecialAttack && !h.accurate) {
+              return HitDistribution.single(1.0, [h]);
+            }
 
-          const followUp = HitDistribution.linear(1.0, 0, flamesMax);
-          if (this.opts.usingSpecialAttack) {
-            return new HitDistribution([new WeightedHit(1.0, [h])]).zip(followUp);
-          }
+            if (this.opts.usingSpecialAttack) {
+              return new HitDistribution([new WeightedHit(1.0, [h])]).zip(flamesOfCerberusDist);
+            }
 
-          const procFollowUp = followUp.scaleProbability(0.05);
-          procFollowUp.addHit(new WeightedHit(0.95, [Hitsplat.INACCURATE]));
-          return new HitDistribution([new WeightedHit(1.0, [h])]).zip(procFollowUp);
-        },
-        { transformInaccurate: true },
-      );
+            const procFollowUp = flamesOfCerberusDist.scaleProbability(0.05);
+            procFollowUp.addHit(new WeightedHit(0.95, [Hitsplat.INACCURATE]));
+            return new HitDistribution([new WeightedHit(1.0, [h])]).zip(procFollowUp);
+          },
+          { transformInaccurate: true },
+        );
+      }
     }
 
     if (style === 'magic'

@@ -786,7 +786,7 @@ describe('Demonic pacts', () => {
     expect(vHelm.maxHit).toBeGreaterThan(slayerHelm.maxHit);
   });
 
-  test('fang of the hound special always includes a flames follow-up hitsplat', () => {
+  test('fang of the hound special always includes a guaranteed flames follow-up hitsplat', () => {
     const player = getTestPlayer(monster, {
       equipment: {
         weapon: findEquipment('Fang of the hound'),
@@ -796,6 +796,25 @@ describe('Demonic pacts', () => {
     const result = calculatePlayerVsNpc(monster, player, { usingSpecialAttack: true });
 
     expect(result.dist.dists[0].hits.every((hit) => hit.hitsplats.length === 2)).toBe(true);
+  });
+
+  test('fang of the hound flames follow-up scales with fire spell bonuses', () => {
+    const basePlayer = getTestPlayer(monster, {
+      equipment: {
+        weapon: findEquipment('Fang of the hound'),
+      },
+    });
+    const tomePlayer = getTestPlayer(monster, {
+      equipment: {
+        weapon: findEquipment('Fang of the hound'),
+        shield: findEquipment('Tome of fire', 'Charged'),
+      },
+    });
+
+    const base = calculatePlayerVsNpc(monster, basePlayer, { usingSpecialAttack: true });
+    const boosted = calculatePlayerVsNpc(monster, tomePlayer, { usingSpecialAttack: true });
+
+    expect(boosted.maxHit).toBeGreaterThan(base.maxHit);
   });
 
   test('max accuracy roll chance starts at 5% and increases by 5% per tile distance', () => {
