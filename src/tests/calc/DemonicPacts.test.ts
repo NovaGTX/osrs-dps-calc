@@ -40,6 +40,10 @@ const getAccurateMinimum = (dist: ReturnType<typeof calculatePlayerVsNpc>['dist'
     .map((hit) => hit.getSum()),
 );
 
+const getAccurateProbability = (dist: ReturnType<typeof calculatePlayerVsNpc>['dist']['dists'][number]) => dist.hits
+  .filter((hit) => hit.hitsplats.some((hitsplat) => hitsplat.accurate))
+  .reduce((sum, hit) => sum + hit.probability, 0);
+
 describe('Demonic pacts', () => {
   test('buffed ranged prayers increase ranged accuracy and damage', () => {
     const basePlayer = getTestPlayer(monster, {
@@ -878,6 +882,42 @@ describe('Demonic pacts', () => {
     expect(boosted.dps).toBeGreaterThan(base.dps);
   });
 
+  test('multi-hit strength pact does not apply to two-handed heavy weapons', () => {
+    const basePlayer = getTestPlayer(monster, {
+      equipment: {
+        weapon: findEquipment('Noxious halberd'),
+      },
+      style: {
+        name: 'Swipe',
+        type: 'slash',
+        stance: 'Aggressive',
+      },
+    });
+    const boostedPlayer = getTestPlayer(monster, {
+      equipment: {
+        weapon: findEquipment('Noxious halberd'),
+      },
+      style: {
+        name: 'Swipe',
+        type: 'slash',
+        stance: 'Aggressive',
+      },
+      leagues: {
+        six: {
+          effects: {
+            talent_multi_hit_str_increase: 1,
+          },
+        },
+      },
+    });
+
+    const base = calculatePlayerVsNpc(monster, basePlayer);
+    const boosted = calculatePlayerVsNpc(monster, boostedPlayer);
+
+    expect(boosted.maxHit).toBe(base.maxHit);
+    expect(findResult(boosted.details, DetailKey.LEAGUES_MULTI_HIT_STR_INCREASE)).toBeUndefined();
+  });
+
   test('crossbow max-hit capstone does not increase ranged echo damage', () => {
     const sharedEffects = {
       talent_regen_ammo: 50,
@@ -951,6 +991,44 @@ describe('Demonic pacts', () => {
     const echoContributionWithCapstone = echoWithCapstone.dist.getExpectedDamage() - noEchoWithCapstone.dist.getExpectedDamage();
 
     expect(echoContributionWithCapstone).toBeCloseTo(echoContribution, 10);
+  });
+
+  test('thrown echo max-hit capstone preserves total accurate echo probability', () => {
+    const basePlayer = getTestPlayer(monster, {
+      equipment: {
+        weapon: findEquipment('Dragon knife', 'Unpoisoned'),
+      },
+      leagues: {
+        six: {
+          effects: {
+            talent_regen_ammo: 50,
+            talent_ranged_regen_echo_chance: 35,
+          },
+        },
+      },
+    });
+    const capstonePlayer = getTestPlayer(monster, {
+      equipment: {
+        weapon: findEquipment('Dragon knife', 'Unpoisoned'),
+      },
+      leagues: {
+        six: {
+          effects: {
+            talent_regen_ammo: 50,
+            talent_ranged_regen_echo_chance: 35,
+            talent_thrown_maxhit_echoes: 1,
+          },
+        },
+      },
+    });
+
+    const base = calculatePlayerVsNpc(monster, basePlayer);
+    const capstone = calculatePlayerVsNpc(monster, capstonePlayer);
+
+    expect(base.dist.dists).toHaveLength(2);
+    expect(capstone.dist.dists).toHaveLength(2);
+    expect(getAccurateProbability(capstone.dist.dists[1])).toBeCloseTo(getAccurateProbability(base.dist.dists[1]), 10);
+    expect(capstone.dist.dists[1].expectedHit()).toBeGreaterThan(base.dist.dists[1].expectedHit());
   });
 
   test('ranged cyclical echoes fan out into three follow-ups after the first echo lands', () => {

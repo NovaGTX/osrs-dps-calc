@@ -439,16 +439,17 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       echoAcc = 1;
     }
     this.track(DetailKey.LEAGUES_ECHO_CHANCE_ACCURACY, echoAcc);
-    echoChance *= echoAcc;
-
-    let echoDist = HitDistribution.linear(echoChance, min, max);
+    let echoDist = HitDistribution.linear(echoAcc, min, max);
     if (leagues.effects.talent_thrown_maxhit_echoes && isWearingThrown) {
       const effectChance = 0.2;
       echoDist = echoDist.scaleProbability(1 - effectChance);
-      echoDist.addHit(new WeightedHit(effectChance * acc, [new Hitsplat(max)]));
-      echoDist.addHit(new WeightedHit(effectChance * (1 - acc), [Hitsplat.INACCURATE]));
+      echoDist.addHit(new WeightedHit(effectChance * echoAcc, [new Hitsplat(max)]));
+      echoDist.addHit(new WeightedHit(effectChance * (1 - echoAcc), [Hitsplat.INACCURATE]));
       echoDist = echoDist.flatten();
     }
+    echoDist = echoDist.scaleProbability(echoChance);
+    echoDist.addHit(new WeightedHit(1 - echoChance, [Hitsplat.INACCURATE]));
+    echoDist = echoDist.flatten();
 
     this.trackDist(DetailKey.DIST_LEAGUES_ECHO, echoDist);
     return echoDist;
@@ -866,7 +867,7 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     }
 
     const weaponWeight = this.player.equipment.weapon?.weight ?? Infinity;
-    const isOneHanded = this.player.equipment.weapon?.isTwoHanded ?? false;
+    const isOneHanded = this.player.equipment.weapon?.isTwoHanded === false;
     if (this.player.leagues.six.effects.talent_multi_hit_str_increase && (weaponWeight < 1 || isOneHanded)) {
       const strengthBonus = Math.trunc(this.player.skills.str * 0.20);
       maxHit = this.trackFactor(DetailKey.LEAGUES_MULTI_HIT_STR_INCREASE, maxHit, [100 + strengthBonus, 100]);
