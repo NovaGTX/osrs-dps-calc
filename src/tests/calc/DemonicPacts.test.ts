@@ -878,6 +878,81 @@ describe('Demonic pacts', () => {
     expect(boosted.dps).toBeGreaterThan(base.dps);
   });
 
+  test('crossbow max-hit capstone does not increase ranged echo damage', () => {
+    const sharedEffects = {
+      talent_regen_ammo: 50,
+      talent_ranged_regen_echo_chance: 35,
+      talent_crossbow_echo_reproc_chance: 15,
+      talent_crossbow_double_accuracy_roll: 1,
+      talent_crossbow_slow_big_hits: 1,
+    };
+
+    const echoPlayer = getTestPlayer(monster, {
+      equipment: {
+        weapon: findEquipment('Rune crossbow'),
+        ammo: findEquipment('Adamant bolts'),
+      },
+      leagues: {
+        six: {
+          effects: sharedEffects,
+        },
+      },
+    });
+    const echoWithCapstonePlayer = getTestPlayer(monster, {
+      equipment: {
+        weapon: findEquipment('Rune crossbow'),
+        ammo: findEquipment('Adamant bolts'),
+      },
+      leagues: {
+        six: {
+          effects: {
+            ...sharedEffects,
+            talent_crossbow_max_hit: 1,
+          },
+        },
+      },
+    });
+    const noEchoPlayer = getTestPlayer(monster, {
+      equipment: {
+        weapon: findEquipment('Rune crossbow'),
+        ammo: findEquipment('Adamant bolts'),
+      },
+      leagues: {
+        six: {
+          effects: {
+            talent_crossbow_double_accuracy_roll: 1,
+            talent_crossbow_slow_big_hits: 1,
+          },
+        },
+      },
+    });
+    const noEchoWithCapstonePlayer = getTestPlayer(monster, {
+      equipment: {
+        weapon: findEquipment('Rune crossbow'),
+        ammo: findEquipment('Adamant bolts'),
+      },
+      leagues: {
+        six: {
+          effects: {
+            talent_crossbow_double_accuracy_roll: 1,
+            talent_crossbow_slow_big_hits: 1,
+            talent_crossbow_max_hit: 1,
+          },
+        },
+      },
+    });
+
+    const echo = calculatePlayerVsNpc(monster, echoPlayer);
+    const echoWithCapstone = calculatePlayerVsNpc(monster, echoWithCapstonePlayer);
+    const noEcho = calculatePlayerVsNpc(monster, noEchoPlayer);
+    const noEchoWithCapstone = calculatePlayerVsNpc(monster, noEchoWithCapstonePlayer);
+
+    const echoContribution = echo.dist.getExpectedDamage() - noEcho.dist.getExpectedDamage();
+    const echoContributionWithCapstone = echoWithCapstone.dist.getExpectedDamage() - noEchoWithCapstone.dist.getExpectedDamage();
+
+    expect(echoContributionWithCapstone).toBeCloseTo(echoContribution, 10);
+  });
+
   test('ranged cyclical echoes fan out into three follow-ups after the first echo lands', () => {
     const basePlayer = getTestPlayer(monster, {
       equipment: {
@@ -920,7 +995,7 @@ describe('Demonic pacts', () => {
 
     const singleEchoExpectedDamage = echo.dist.getExpectedDamage() - base.dist.getExpectedDamage();
     const cyclicalExtraDamage = cyclical.dist.getExpectedDamage() - base.dist.getExpectedDamage();
-    const followUpChance = (findResult(echo.details, DetailKey.LEAGUES_ECHO_CHANCE_ACCURACY) as number) / 2;
+    const followUpChance = (findResult(echo.details, DetailKey.LEAGUES_ECHO_CHANCE_TRIGGER) as number) / 2;
     const burstMultiplier = 1 + 3 * followUpChance;
 
     expect(cyclicalExtraDamage).toBeGreaterThan(singleEchoExpectedDamage);
@@ -970,7 +1045,7 @@ describe('Demonic pacts', () => {
 
     const singleEchoExpectedDamage = echo.dist.getExpectedDamage() - base.dist.getExpectedDamage();
     const cyclicalExtraDamage = cyclical.dist.getExpectedDamage() - base.dist.getExpectedDamage();
-    const followUpChance = (findResult(echo.details, DetailKey.LEAGUES_ECHO_CHANCE_ACCURACY) as number) / 2;
+    const followUpChance = (findResult(echo.details, DetailKey.LEAGUES_ECHO_CHANCE_TRIGGER) as number) / 2;
     const burstMultiplier = 1 + 3 * followUpChance;
 
     expect(cyclicalExtraDamage).toBeGreaterThan(singleEchoExpectedDamage);

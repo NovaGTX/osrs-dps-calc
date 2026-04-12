@@ -406,12 +406,7 @@ export default class PlayerVsNPCCalc extends BaseCalc {
       triggerChance += leagues.effects.talent_crossbow_echo_reproc_chance / 100;
     }
 
-    let echoChance = triggerChance;
-    if (rangedEcho) {
-      echoChance *= (leagues.effects.talent_regen_ammo ?? 0) / 100;
-    }
-
-    return echoChance;
+    return triggerChance;
   }
 
   private getEchoAttackDist(acc: number, min: number, max: number): HitDistribution | null {
@@ -435,17 +430,16 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     let echoChance = triggerChance;
     if (rangedEcho) {
       const regenChance = (leagues.effects.talent_regen_ammo ?? 0) / 100;
+      this.track(DetailKey.LEAGUES_ECHO_CHANCE_REGEN, regenChance);
       echoChance *= regenChance;
-      this.track(DetailKey.LEAGUES_ECHO_CHANCE_REGEN, echoChance);
     }
 
     let echoAcc = acc;
     if (leagues.effects.talent_bow_always_pass_accuracy && isWearingBow) {
       echoAcc = 1;
     }
+    this.track(DetailKey.LEAGUES_ECHO_CHANCE_ACCURACY, echoAcc);
     echoChance *= echoAcc;
-
-    this.track(DetailKey.LEAGUES_ECHO_CHANCE_ACCURACY, echoChance);
 
     let echoDist = HitDistribution.linear(echoChance, min, max);
     if (leagues.effects.talent_thrown_maxhit_echoes && isWearingThrown) {
@@ -1196,11 +1190,6 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     const rangeDamage = this.player.leagues.six.effects?.talent_percentage_ranged_damage || 0;
     if (rangeDamage > 0) {
       maxHit = this.trackFactor(DetailKey.LEAGUES_RANGED_DAMAGE_TALENT, maxHit, [100 + rangeDamage, 100]);
-    }
-
-    if (this.player.leagues.six.effects.talent_crossbow_max_hit
-      && this.player.equipment.weapon?.category === 'Crossbow') {
-      return [maxHit, maxHit];
     }
 
     return [minHit, maxHit];
@@ -1962,6 +1951,11 @@ export default class PlayerVsNPCCalc extends BaseCalc {
     }
 
     const leagues = this.player.leagues.six;
+    if (leagues.effects.talent_crossbow_max_hit
+      && this.player.equipment.weapon?.category === 'Crossbow') {
+      dist = new AttackDistribution([HitDistribution.single(acc, [new Hitsplat(max)])]);
+    }
+
     const spellement = this.getSpellement();
     if (leagues.effects.talent_air_spell_damage_active_prayers && spellement === 'air') {
       // todo(leagues): this needs the other non-combat prayers accessible via ui but that shouldn't require updating here
